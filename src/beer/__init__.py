@@ -2,19 +2,11 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+import dotenv
+from fastapi.logger import logger as fastapi_logger
 from rich.console import ConsoleRenderable
 from rich.logging import RichHandler
 from rich.traceback import Traceback
-
-# Required workaround because PyTorch Lightning configures the logging on import,
-# thus the logging configuration defined in the __init__.py must be called before
-# the lightning import otherwise it has no effect.
-# See https://github.com/PyTorchLightning/pytorch-lightning/issues/1503
-lightning_logger = logging.getLogger("pytorch_lightning")
-# Remove all handlers associated with the lightning logger.
-for handler in lightning_logger.handlers[:]:
-    lightning_logger.removeHandler(handler)
-lightning_logger.propagate = True
 
 
 class NNRichHandler(RichHandler):
@@ -44,21 +36,27 @@ class NNRichHandler(RichHandler):
         return log_renderable
 
 
+handler = NNRichHandler(
+    rich_tracebacks=True,
+    show_level=True,
+    show_path=True,
+    show_time=True,
+    omit_repeated_times=True,
+)
 FORMAT = "%(message)s"
 logging.basicConfig(
     format=FORMAT,
-    level=logging.INFO,
+    level=logging.DEBUG,
     datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        NNRichHandler(
-            rich_tracebacks=True,
-            show_level=True,
-            show_path=True,
-            show_time=True,
-            omit_repeated_times=True,
-        )
-    ],
+    handlers=[handler],
 )
+
+# TODO: not working :]
+# Remove all handlers associated with the fastapi logger.
+fastapi_logger.handlers = [handler]
+fastapi_logger.propagate = True
+
+dotenv.load_dotenv(dotenv_path=None, override=True)
 
 try:
     from ._version import __version__ as __version__

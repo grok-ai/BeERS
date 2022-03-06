@@ -12,7 +12,7 @@ Better Enabled Resources
 ## Installation
 
 ```bash
-pip install git+ssh://git@github.com/gladia/beer.git
+pip install git+ssh://git@github.com/grok-ai/beer.git
 ```
 
 
@@ -26,7 +26,7 @@ pip install git+ssh://git@github.com/gladia/beer.git
 Setup the development environment:
 
 ```bash
-git clone git+ssh://git@github.com/gladia/beer.git
+git clone git+ssh://git@github.com/grok-ai/beer.git
 conda env create -f env.yaml
 conda activate beer
 pre-commit install

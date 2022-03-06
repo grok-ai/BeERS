@@ -1,0 +1,220 @@
+#! python
+
+import logging
+import os
+from pathlib import Path
+from typing import Mapping, Optional
+
+import requests
+import typer
+from requests import Response, ConnectTimeout
+
+import beer  # noqa
+from beer.models import WorkerModel
+from beer.worker_utils import build_worker_specs
+
+pylogger = logging.getLogger()
+
+service_app = typer.Typer(name="service")
+
+
+def _bash_run(script_path: Path, env: Mapping[str, str]):
+    import subprocess
+
+    # Read the file in case there are no execution permissions. Better safe than sorry.
+    script = script_path.read_text(encoding="utf-8")
+
+    return subprocess.call(script, shell=True, env=env)
+
+
+def _setup_traefik(
+    hostname: Optional[str], force_reset: bool, traefik_domain: str, traefik_email: str, traefik_username: str
+):
+    assert all(x is not None and len(x) > 0 for x in (traefik_domain, traefik_email, traefik_username))
+    # Check hostname is set
+    if hostname is None:
+        # We need to read it.
+        hostname_path: Path = Path("/etc/hostname")
+        if not hostname_path.exists():
+            # To set it, we need sudo power.
+            # Since with great power comes great responsibility, we ask the users to set it manually.
+            pylogger.error(
+                """Missing hostname in /etc/hostname. Please run
+```sudo echo your_hostname >/etc/hostname
+sudo hostname -F /etc/hostname```"""
+            )
+
+        hostname = Path("/etc/hostname").read_text(encoding="utf-8").strip()
+
+        if len(hostname) == 0:
+            # To set it, we need sudo power.
+            # Since with great power comes great responsibility, we ask the users to set it manually.
+            pylogger.error(
+                """Hostname in /etc/hostname is empty. Please run
+```sudo echo your_hostname >/etc/hostname
+sudo hostname -F /etc/hostname```"""
+            )
+
+    if force_reset:
+        import subprocess
+
+        subprocess.call("docker stack rm traefik", shell=True)
+        print("traefick public", subprocess.call("docker network rm traefik-public", shell=True))
+
+    traefik_path: Path = Path("./swarmrocks/traefik.sh")
+    assert traefik_path.exists()
+
+    traefik_env = dict(HOSTNAME=hostname, USERNAME=traefik_username, EMAIL=traefik_email, DOMAIN=traefik_domain)
+    traefik_out = _bash_run(script_path=traefik_path, env=traefik_env)
+    assert traefik_out == 0, traefik_out
+
+
+def _setup_swarmpit(swarmpit_domain: str, traefik: bool, force_reset: bool):
+    if not traefik:
+        pylogger.warning(
+            "Swarmpit needs Traefik to work properly. Make sure it is set up or pass USE_TRAEFIK=true to this script"
+        )
+    assert all(x is not None and len(x) > 0 for x in (swarmpit_domain,))
+
+    if force_reset:
+        import subprocess
+
+        subprocess.call("docker stack rm swarmpit", shell=True)
+
+    swarmpit_path: Path = Path("./swarmrocks/swarmpit.sh")
+    assert swarmpit_path.exists()
+
+    swarmpit_env = dict(DOMAIN=swarmpit_domain)
+    swarmpit_out = _bash_run(script_path=swarmpit_path, env=swarmpit_env)
+    assert swarmpit_out == 0, swarmpit_out
+
+
+def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: bool, force_reset: bool):
+    if not traefik:
+        pylogger.warning(
+            "Swarmprom needs Traefik to work properly. Make sure it is set up or pass USE_TRAEFIK=true to this script"
+        )
+    assert all(x is not None and len(x) > 0 for x in (swarmprom_base_domain,))
+
+    if force_reset:
+        import subprocess
+
+        subprocess.call("docker stack rm swarmpit", shell=True)
+
+    swarmprom_path: Path = Path("./swarmrocks/swarmprom.sh")
+    assert swarmprom_path.exists()
+
+    swarmprom_env = dict(DOMAIN=swarmprom_base_domain, SWARMPROM_USER=swarmprom_user)
+    swarmprom_out = _bash_run(script_path=swarmprom_path, env=swarmprom_env)
+
+    assert swarmprom_out == 0, swarmprom_out
+
+
+@service_app.command("manager")
+def _init_manager(
+    ip: str = typer.Option(..., prompt=True, envvar="MANAGER_IP"),
+    port: int = typer.Option(..., prompt=True, envvar="MANAGER_PORT"),
+    hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
+    #
+    traefik: bool = typer.Option(False, prompt=True, envvar="USE_TRAEFIK"),
+    traefik_username: str = typer.Option(None, prompt=False, envvar="TRAEFIK_USERNAME"),
+    traefik_email: str = typer.Option(None, prompt=False, envvar="TRAEFIK_EMAIL"),
+    traefik_domain: str = typer.Option(None, prompt=False, envvar="TRAEFIK_DOMAIN"),
+    #
+    swarmpit: bool = typer.Option(False, prompt=True, envvar="USE_SWARMPIT"),
+    swarmpit_domain: str = typer.Option(None, prompt=False, envvar="SWARMPIT_DOMAIN"),
+    #
+    swarmprom: bool = typer.Option(False, prompt=True, envvar="SWARMPROM"),
+    swarmprom_base_domain: str = typer.Option(None, prompt=False, envvar="SWARMPROM_BASE_DOMAIN"),
+    swarmprom_user: str = typer.Option(None, prompt=False, envvar="SWARMPROM_USER"),
+    #
+    force_reset: bool = typer.Option(True, prompt=True, envvar="FORCE_RESET"),
+):
+    import docker
+
+    client = docker.from_env()
+
+    manager_id: str = client.swarm.init(
+        # advertise_addr="tun0",
+        listen_addr=f"{ip}:{port}",
+        force_new_cluster=force_reset,
+        # default_addr_pool=["10.43.0.0/16"],
+        # subnet_size=24,
+        # snapshot_interval=5000,
+        # log_entries_for_slow_followers=1200,
+    )
+
+    worker_token: str = client.swarm.attrs["JoinTokens"]["Worker"]
+    pylogger.info(f"WORKER_TOKEN: <{worker_token}>")
+
+    # if traefik:
+    #     _setup_traefik(
+    #         hostname=hostname,
+    #         force_reset=force_reset,
+    #         traefik_domain=traefik_domain,
+    #         traefik_email=traefik_email,
+    #         traefik_username=traefik_username,
+    #     )
+    #
+    # if swarmpit:
+    #     _setup_swarmpit(swarmpit_domain=swarmpit_domain, traefik=traefik, force_reset=force_reset)
+    #
+    # if swarmprom:
+    #     _setup_swarmprom(
+    #         swarmprom_base_domain=swarmprom_base_domain,
+    #         swarmprom_user=swarmprom_user,
+    #         traefik=traefik,
+    #         force_reset=force_reset,
+    #     )
+
+    from beer.manager import service
+
+    service.run(worker_token=worker_token)
+
+
+@service_app.command("worker")
+def _init_worker(
+    manager_ip: str = typer.Option(..., prompt=True),
+    manager_port: int = typer.Option(..., prompt=True),
+    token: str = typer.Option(..., prompt=True),
+):
+    import docker
+
+    manager_url: str = f"http://{manager_ip}:{manager_port}"
+
+    # client = docker.from_env()
+
+    # join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
+    # TODO
+    join_result = True
+    if join_result:
+        worker_model: WorkerModel = build_worker_specs()
+
+        try:
+            response: Response = requests.post(url=f"{manager_url}/join", json=worker_model.dict(), timeout=5)
+            print(response.json())
+        except ConnectTimeout:
+            pylogger.error(f"Could not connect to {manager_url} (timed out)")
+            return
+        except Exception as exc:
+            # TODO
+            pylogger.error(f"Could not connect to {manager_url}: {exc.args})")
+            return
+    #
+
+
+@service_app.command("bot")
+def _init_bot(
+    manager_ip: str = typer.Option(..., prompt=True),
+    manager_port: int = typer.Option(..., prompt=True),
+    protocol: str = typer.Argument("http"),
+):
+    from beer.bot.telegram_bot import BeerBot
+
+    manager_url: str = f"{protocol}://{manager_ip}:{manager_port}"
+
+    BeerBot(bot_token=os.environ["TELEGRAM_API_KEY"], manager_url=manager_url).run()
+
+
+if __name__ == "__main__":
+    service_app()

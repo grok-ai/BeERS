@@ -81,3 +81,4 @@ repos:
       args: ['-c', 'pyproject.toml', '--recursive', 'src']
       additional_dependencies:
         - toml
+#      exclude: src/beer/nvidia.py
