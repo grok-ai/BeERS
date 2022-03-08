@@ -68,7 +68,7 @@ class ManagerAnswer(BaseModel):
 
 
 def build_request_user(user: User) -> RequestUser:
-    return RequestUser(user_id=str(user.id), r_username=user.username, r_full_name=user.full_name)
+    return RequestUser(user_id=str(user.id), username=user.username, full_name=user.full_name)
 
 
 class ManagerAPI:
