@@ -148,7 +148,7 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
     ]
     gpus: Sequence[GPU] = GPU.by_workers(worker_ids=online_workers)
     gpus: Sequence = [model_to_dict(gpu) for gpu in gpus]
-    return {"resources": gpus}
+    return ManagerAnswer(code=ReturnCodes.RESOURCE_LIST, data={"resources": gpus})
 
 
 def run(worker_token: str):

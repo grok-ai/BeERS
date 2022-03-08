@@ -31,6 +31,7 @@ class ReturnCodes(StrEnum):
     REGISTRATION_SUCCESSFUL = auto()
     PERMISSION_OK = auto()
     DISPATCH_OK = auto()
+    RESOURCE_LIST = auto()
 
     @property
     def is_error(self):
