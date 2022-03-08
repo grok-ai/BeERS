@@ -113,7 +113,8 @@ def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: b
 @service_app.command("manager")
 def _init_manager(
     ip: str = typer.Option(..., prompt=True, envvar="MANAGER_IP"),
-    port: int = typer.Option(..., prompt=True, envvar="MANAGER_PORT"),
+    swarm_port: int = typer.Option(..., prompt=True, envvar="MANAGER_SWARM_PORT"),
+    rest_port: int = typer.Option(..., prompt=True, envvar="MANAGER_REST_PORT"),
     hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
     #
     traefik: bool = typer.Option(False, prompt=True, envvar="USE_TRAEFIK"),
@@ -136,7 +137,7 @@ def _init_manager(
 
     manager_id: str = client.swarm.init(
         # advertise_addr="tun0",
-        listen_addr=f"{ip}:{port}",
+        listen_addr=f"{ip}:{swarm_port}",
         force_new_cluster=force_reset,
         # default_addr_pool=["10.43.0.0/16"],
         # subnet_size=24,
@@ -175,20 +176,20 @@ def _init_manager(
 @service_app.command("worker")
 def _init_worker(
     manager_ip: str = typer.Option(..., prompt=True),
-    manager_port: int = typer.Option(..., prompt=True),
+    manager_swarm_port: int = typer.Option(..., prompt=True),
+    manager_rest_port: int = typer.Option(..., prompt=True),
     token: str = typer.Option(..., prompt=True),
 ):
     import docker
 
-    manager_url: str = f"http://{manager_ip}:{manager_port}"
+    manager_url: str = f"{manager_ip}:{manager_swarm_port}"
+    client = docker.from_env()
 
-    # client = docker.from_env()
-
-    # join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
-    # TODO
-    join_result = True
+    join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
     if join_result:
         worker_model: WorkerModel = build_worker_specs()
+
+        manager_url: str = f"http://{manager_ip}:{manager_rest_port}"
 
         try:
             response: Response = requests.post(url=f"{manager_url}/join", json=worker_model.dict(), timeout=5)
