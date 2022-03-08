@@ -32,7 +32,7 @@ def build_worker_specs() -> WorkerModel:
         }
 
         disk = psutil.disk_usage(_VOLUME_DISK_PATH)
-        unit_measure = 1024.0 ** 3
+        unit_measure = 1024.0**3
 
         disk = dict(
             total=disk.total / unit_measure,
@@ -53,8 +53,8 @@ def build_worker_specs() -> WorkerModel:
             node_id=None,
             hostname=platform.uname().node,
             info=info,
-            ram=ram,
-            disk=disk,
+            # ram=ram,
+            # disk=disk,
             gpus=nvidia.get_gpus(),
         )
     except Exception as e:
