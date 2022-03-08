@@ -73,8 +73,8 @@ class User(Model):
 
 
 class Worker(Model):
-    _id = CharField()  # swarm id
     hostname = CharField(primary_key=True, max_length=42)
+    # node_id = CharField()  # swarm id
     ip = IPField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
 
@@ -83,10 +83,10 @@ class Worker(Model):
 
     @classmethod
     def register(cls, worker_model: WorkerModel) -> "Worker":
-        worker = Worker.select().where(Worker._id == worker_model.node_id).get_or_none()
+        worker = Worker.select().where(Worker.hostname == worker_model.hostname).get_or_none()
 
         if worker is not None:
-            raise DBError(f"Worker collision with ({worker_model.node_id}), register denied.")  # TODO
+            raise DBError(f"Worker hostname collision with ({worker_model}), register denied.")  # TODO
 
         worker = Worker.create(
             hostname=worker_model.hostname,
