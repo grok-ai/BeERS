@@ -8,7 +8,7 @@ from telegram.utils.helpers import escape_markdown
 import beer  # noqa
 from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
 
-pylogger = logging.getLogger()
+pylogger = logging.getLogger(__name__)
 
 
 class BeerBot:

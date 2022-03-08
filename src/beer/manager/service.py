@@ -20,7 +20,7 @@ from beer.manager.beer_db import GPU, DBError, User, Worker
 from beer.models import JobRequestModel, RequestUser, WorkerModel
 from beer.utils import run_service
 
-pylogger = logging.getLogger()
+pylogger = logging.getLogger(__name__)
 
 _RETURN_CODE_KEY: str = "code"
 _DATA_CODE_KEY: str = "data"

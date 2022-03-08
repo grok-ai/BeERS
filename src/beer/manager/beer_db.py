@@ -102,7 +102,7 @@ class Worker(Model):
     @classmethod
     def get_workers(cls, worker_ids: Sequence[str]) -> Sequence["Worker"]:
         worker_ids = list(worker_ids)
-        return list(Worker.select().where(Worker._id << worker_ids))
+        return list(Worker.select().where(Worker.hostname << worker_ids))
 
 
 class Job(Model):

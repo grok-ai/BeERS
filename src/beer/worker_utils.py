@@ -10,7 +10,7 @@ import psutil
 from beer import nvidia
 from beer.models import WorkerModel
 
-pylogger = logging.getLogger()
+pylogger = logging.getLogger(__name__)
 
 _VOLUME_DISK_PATH: str = os.environ["WORKER_VOLUME_DISK_PATH"]
 
