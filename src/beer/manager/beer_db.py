@@ -2,7 +2,7 @@ import itertools
 import logging
 import operator
 import os
-from typing import Sequence, Mapping
+from typing import Mapping, Sequence
 
 import orjson
 from peewee import (
@@ -144,10 +144,11 @@ class GPU(Model):
         GPU.create(worker=worker_id, name=gpu_model.name, index=gpu_model.index, info=gpu_model.info)
 
     @classmethod
-    def by_workers(cls, worker_ids: Sequence[str]) -> Mapping[str, Sequence["GPU"]]:
+    def by_workers(cls, worker_ids: Sequence[str]) -> Mapping[Worker, Sequence["GPU"]]:
         worker_ids = list(worker_ids)
         gpus = list(cls.select().where(GPU.worker << worker_ids))
         return {worker: list(items) for worker, items in itertools.groupby(gpus, key=operator.attrgetter("worker"))}
+
 
 def init(owner_id: str):
     _db.connect(reuse_if_open=True)

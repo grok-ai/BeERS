@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, List, Sequence
+from typing import Any, List, Mapping, Sequence
 
 import orjson
 import requests
@@ -149,7 +149,7 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
         if node.attrs["Status"]["State"] == "ready" and node.attrs["Spec"]["Availability"] == "active":
             online_workers.append(node.attrs["Description"]["Hostname"])
 
-    gpus: Sequence[GPU] = GPU.by_workers(worker_ids=online_workers)
+    gpus: Mapping[Worker, Sequence[GPU]] = GPU.by_workers(worker_ids=online_workers)
     gpus: Sequence = [model_to_dict(gpu) for gpu in gpus]
     return ManagerAnswer(code=ReturnCodes.RESOURCE_LIST, data={"resources": gpus})
 
