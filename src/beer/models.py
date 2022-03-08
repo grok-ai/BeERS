@@ -6,8 +6,6 @@ from beer.nvidia import NvidiaGPU
 
 
 class WorkerModel(BaseModel):
-    node_id: Optional[str]
-
     hostname: str
     external_ip: Optional[str]
 
