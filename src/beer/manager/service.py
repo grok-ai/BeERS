@@ -142,11 +142,11 @@ def dispatch(request_user: int, job: JobRequestModel):
 def list_resources(request_user: RequestUser, only_online: bool = Body(None), only_available: bool = Body(None)):
     online_workers: List[Node] = client.nodes.list(filters={"role": "worker"})
     online_workers: List[str] = [
-        worker.attrs["ID"]
+        worker.attrs["hostname"]
         for worker in online_workers
         if worker.attrs["Status"]["State"] == "ready" and worker.attrs["Spec"]["Availability"] == "active"
     ]
-    gpus: Sequence[GPU] = GPU.get_resources(online_workers=online_workers)
+    gpus: Sequence[GPU] = GPU.by_workers(worker_ids=online_workers)
     gpus: Sequence = [model_to_dict(gpu) for gpu in gpus]
     return {"resources": gpus}
 
