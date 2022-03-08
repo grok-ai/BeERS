@@ -31,7 +31,7 @@ class ReturnCodes(StrEnum):
     REGISTRATION_SUCCESSFUL = auto()
     PERMISSION_OK = auto()
     DISPATCH_OK = auto()
-    RESOURCE_LIST = auto()
+    RESOURCES = auto()
 
     @property
     def is_error(self):
@@ -55,6 +55,7 @@ MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
     ReturnCodes.REGISTRATION_SUCCESSFUL: "Registration successful!",
     ReturnCodes.PERMISSION_OK: "Ok!",
     ReturnCodes.KEY_MISSING_ERROR: "You first need to *add your public SSH key.",
+    ReturnCodes.RESOURCES: "Bella lista risorse: ",
 }
 
 

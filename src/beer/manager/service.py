@@ -149,9 +149,15 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
         if node.attrs["Status"]["State"] == "ready" and node.attrs["Spec"]["Availability"] == "active":
             online_workers.append(node.attrs["Description"]["Hostname"])
 
-    gpus: Mapping[Worker, Sequence[GPU]] = GPU.by_workers(worker_ids=online_workers)
-    gpus: Sequence = [model_to_dict(gpu) for gpu in gpus]
-    return ManagerAnswer(code=ReturnCodes.RESOURCE_LIST, data={"resources": gpus})
+    resources: Mapping[Worker, Sequence[GPU]] = GPU.by_workers(worker_ids=online_workers)
+
+    return ManagerAnswer(
+        code=ReturnCodes.RESOURCES,
+        data={
+            "workers": {worker.hostname: model_to_dict(worker) for worker in resources.keys()},
+            "gpus": {worker.hostname: [model_to_dict(gpu) for gpu in gpus] for worker, gpus in resources.items()},
+        },
+    )
 
 
 def run(worker_token: str):
