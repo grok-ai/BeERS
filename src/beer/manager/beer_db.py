@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Sequence
 
@@ -22,6 +23,7 @@ from beer.models import WorkerModel
 from beer.nvidia import NvidiaGPU
 
 _db: SqliteDatabase = SqliteDatabase(os.environ["BEER_DB_PATH"])
+pylogger = logging.getLogger(__name__)
 
 
 class DBError(RuntimeError):
