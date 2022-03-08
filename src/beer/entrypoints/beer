@@ -207,12 +207,12 @@ def _init_worker(
 @service_app.command("bot")
 def _init_bot(
     manager_ip: str = typer.Option(..., prompt=True),
-    manager_port: int = typer.Option(..., prompt=True),
+    manager_rest_port: int = typer.Option(..., prompt=True),
     protocol: str = typer.Argument("http"),
 ):
     from beer.bot.telegram_bot import BeerBot
 
-    manager_url: str = f"{protocol}://{manager_ip}:{manager_port}"
+    manager_url: str = f"{protocol}://{manager_ip}:{manager_rest_port}"
 
     BeerBot(bot_token=os.environ["TELEGRAM_API_KEY"], manager_url=manager_url).run()
 
