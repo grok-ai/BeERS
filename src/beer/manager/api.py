@@ -1,5 +1,6 @@
+import json
 from enum import auto
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import requests
 from pydantic import BaseModel
@@ -46,6 +47,8 @@ class ReturnCodes(StrEnum):
         return self.value[1]
 
 
+MESSAGE_FORMAT: Mapping[ReturnCodes, Callable] = {}
+
 MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
     ReturnCodes.DB_ERROR: "A generic error occurred while querying the database!",
     ReturnCodes.PERMISSION_ERROR: "You don't have permission to do that!",
@@ -55,7 +58,6 @@ MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
     ReturnCodes.REGISTRATION_SUCCESSFUL: "Registration successful!",
     ReturnCodes.PERMISSION_OK: "Ok!",
     ReturnCodes.KEY_MISSING_ERROR: "You first need to *add your public SSH key.",
-    ReturnCodes.RESOURCES: "Bella lista risorse: ",
 }
 
 
@@ -65,8 +67,12 @@ class ManagerAnswer(BaseModel):
 
     @property
     def message(self) -> str:
-        # TODO
-        return MESSAGE_TEMPLATES[self.code]  # .format(data)
+        if self.code in MESSAGE_FORMAT:
+            return MESSAGE_FORMAT[self.code](self.data)
+        if self.code in MESSAGE_TEMPLATES:
+            return MESSAGE_TEMPLATES[self.code]
+
+        return f"{self.code}:\n\n{json.dumps(self.data, indent=4)}"
 
 
 def build_request_user(user: User) -> RequestUser:
