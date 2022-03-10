@@ -1,4 +1,3 @@
-import json
 import logging
 
 from telegram import Message, MessageEntity, Update, User
@@ -114,10 +113,10 @@ class BeerBot:
     def resources(self, update: Update, context: CallbackContext):
         request_user: User = update.effective_user
 
-        resources_answer = self.manager_service.list_resources(request_user=request_user)
+        resources_answer: ManagerAnswer = self.manager_service.list_resources(request_user=request_user)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=escape_markdown(json.dumps(resources_answer, indent=4), version=2),
+            text=escape_markdown(resources_answer.message, version=2),
             parse_mode="MarkdownV2",
         )
 

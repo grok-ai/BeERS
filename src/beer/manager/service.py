@@ -6,6 +6,7 @@ import orjson
 import requests
 from docker.models.nodes import Node
 from docker.models.services import Service
+from docker.types import EndpointSpec
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -126,7 +127,7 @@ def dispatch(request_user: int, job: JobRequestModel):
         name=job.name,
         tty=True,
         container_labels={"beer.user_id": job.user_id},  # TODO
-        endpoint_spec=docker.types.EndpointSpec(ports={None: (22, None, "host")}),
+        endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
         # args=["-d"],
     )
@@ -155,7 +156,10 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
         code=ReturnCodes.RESOURCES,
         data={
             "workers": {worker.hostname: model_to_dict(worker) for worker in resources.keys()},
-            "gpus": {worker.hostname: [model_to_dict(gpu) for gpu in gpus] for worker, gpus in resources.items()},
+            "gpus": {
+                worker.hostname: [model_to_dict(gpu, recurse=False) for gpu in gpus]
+                for worker, gpus in resources.items()
+            },
         },
     )
 
