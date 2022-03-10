@@ -7,6 +7,7 @@ from typing import Mapping, Optional
 
 import requests
 import typer
+from docker.errors import APIError
 from requests import Response, ConnectTimeout
 
 import beer  # noqa
@@ -179,17 +180,25 @@ def _init_worker(
     manager_swarm_port: int = typer.Option(..., prompt=True),
     manager_rest_port: int = typer.Option(..., prompt=True),
     token: str = typer.Option(..., prompt=True),
+    protocol: str = typer.Argument("http"),
 ):
     import docker
 
     manager_url: str = f"{manager_ip}:{manager_swarm_port}"
     client = docker.from_env()
 
+    try:
+        client.swarm.leave()
+    except APIError:
+        # Most likely it was a Service Unavailable ("This node is not part of a swarm")
+        # TODO: we could check via client.info()
+        pass
+
     join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
     if join_result:
         worker_model: WorkerModel = build_worker_specs()
 
-        manager_url: str = f"http://{manager_ip}:{manager_rest_port}"
+        manager_url: str = f"{protocol}://{manager_ip}:{manager_rest_port}"
 
         try:
             response: Response = requests.post(url=f"{manager_url}/join", json=worker_model.dict(), timeout=5)
