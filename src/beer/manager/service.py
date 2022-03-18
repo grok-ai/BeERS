@@ -121,12 +121,18 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
         docker_config.remove()
 
     config_name: str = f"ssh-key_{user.id}"
-    config_id = client.configs.create(name=config_name, data=ssh_key)
+    docker_config = client.configs.create(name=config_name, data=ssh_key)
+    docker_config.reload()
 
-    user_config = UserConfig.create(id=config_id, name=config_name, public_ssh_key=ssh_key)
+    if docker_config.name != config_name:
+        return ManagerAnswer(
+            code=ReturnCodes.RUNTIME_ERROR, data={"config_name": config_name, "docker_config_name": docker_config.name}
+        )
+
+    user_config = UserConfig.create(id=docker_config.id, name=docker_config.name, public_ssh_key=ssh_key)
     user.config = user_config
 
-    user.save()
+    user.save(only=[User.config])
 
 
 @app.post("/job")
@@ -148,7 +154,9 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         constraints=[f"node.hostname=={worker.hostname}"],
         configs=[
             ConfigReference(
-                config_id=user.config.id, config_name=user.config.name, filename="/root/.ssh/authorized_keys"
+                config_id=user.config.id,
+                config_name=user.config.name,
+                filename="/root/.ssh/authorized_keys",
             )
         ]
         # args=["-d"],

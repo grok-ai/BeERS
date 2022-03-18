@@ -8,7 +8,7 @@ from typing import Mapping, Optional
 import requests
 import typer
 from docker.errors import APIError
-from requests import Response, ConnectTimeout
+from requests import ConnectTimeout, Response
 
 import beer  # noqa
 from beer.models import WorkerModel

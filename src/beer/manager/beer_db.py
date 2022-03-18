@@ -39,6 +39,9 @@ class UserConfig(Model):
     id = CharField(primary_key=True)
     public_ssh_key = CharField(unique=True)
 
+    class Meta:
+        database = _db
+
 
 class User(Model):
     id = CharField(primary_key=True)

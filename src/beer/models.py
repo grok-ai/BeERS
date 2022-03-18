@@ -20,7 +20,6 @@ class JobRequestModel(BaseModel):
     user_id: str
     image: str
     name: str
-    ssh_access_key: str  # TODO
     worker_hostname: str
     expected_duration: int
     gpu_device_ids: Sequence[int]

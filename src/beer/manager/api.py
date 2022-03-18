@@ -27,6 +27,7 @@ class ReturnCodes(StrEnum):
     ALREADY_REGISTERED_ERROR = auto()
     NOT_REGISTERED_ERROR = auto()
     KEY_MISSING_ERROR = auto()
+    RUNTIME_ERROR = auto()
 
     WORKER_INFO = auto()
     REGISTRATION_SUCCESSFUL = auto()
@@ -125,7 +126,6 @@ class ManagerAPI:
                     user_id=request_user.id,
                     image="grokai/beer_job:0.0.1",
                     name="container_name",
-                    ssh_access_key="fake-ssh-key",
                     worker_hostname="valentino-desktop",
                     expected_duration=180,
                     gpu_device_ids=[0],
