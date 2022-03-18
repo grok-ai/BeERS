@@ -148,7 +148,7 @@ class GPU(Model):
 
     @classmethod
     def register(cls, gpu_model: NvidiaGPU, worker_id) -> "GPU":
-        gpu: GPU = GPU.select().where(GPU.worker == worker_id & GPU.uuid == gpu_model.uuid).get_or_none()
+        gpu: GPU = GPU.select().where((GPU.worker == worker_id) & (GPU.uuid == gpu_model.uuid)).get_or_none()
 
         if gpu is None:
             gpu = GPU.create(
