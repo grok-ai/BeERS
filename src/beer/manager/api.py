@@ -1,5 +1,5 @@
 import json
-from enum import auto
+from enum import Enum, auto
 from typing import Any, Callable, Mapping
 
 import requests
@@ -11,12 +11,12 @@ from beer.models import RequestUser
 from beer.utils import StrEnum
 
 
-class PermissionLevel(StrEnum):
-    OWNER = auto()
-    ADMIN = auto()
-    USER = auto()
+class PermissionLevel(Enum):
+    OWNER = 0
+    ADMIN = 1
+    USER = 2
 
-    def higher_permission(self):
+    def higher_permission(self) -> "PermissionLevel":
         permission = list(PermissionLevel)[max(0, list(PermissionLevel).index(self) - 1)]
         return permission
 

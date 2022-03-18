@@ -24,18 +24,6 @@ class BeerBot:
         return message.text[command_entity.length :]
 
     def register_user(self, update: Update, context: CallbackContext):
-        # Check permissions
-        # permission_message: ManagerAnswer = self.manager_service.permission_check(
-        #     user=update.effective_user, required_level=PermissionLevel.ADMIN
-        # )
-        # if permission_message.code.is_error:
-        #     context.bot.send_message(
-        #         chat_id=update.effective_chat.id,
-        #         text=escape_markdown(permission_message.code.message(), version=2),
-        #         parse_mode="MarkdownV2",
-        #     )
-        #     return
-
         request_user: User = update.effective_user
         # Parse parameters
         params_str: str = self.strip_command(message=update.message)
