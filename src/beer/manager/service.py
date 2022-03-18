@@ -3,7 +3,6 @@ import os
 from typing import Any, List, Mapping, Sequence
 
 import orjson
-import requests
 from docker.models.nodes import Node
 from docker.models.services import Service
 from docker.types import EndpointSpec
@@ -115,14 +114,15 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
 
 
 @app.post("/job")
-def dispatch(request_user: int, job: JobRequestModel):
+def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     worker: Worker = Worker.get_by_id(pk=job.worker_hostname)
     user: User = User.get_by_id(pk=job.user_id)
 
-    if user.public_ssh_key is None:
+    ssh_key: str = user.public_ssh_key if (job_key := job.ssh_access_key) is None else job_key
+    if ssh_key is None:
         return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
-    _: Service = client.services.create(
+    service: Service = client.services.create(
         image=job.image,
         name=job.name,
         tty=True,
@@ -134,9 +134,7 @@ def dispatch(request_user: int, job: JobRequestModel):
 
     # job.ssh_access_key = user.public_ssh_key
 
-    dispatch_result = requests.post(f"http://{worker.ip}:{worker.port}/job", json=job.dict())
-    print(f"{dispatch_result.json()=}")
-    return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"dispatch_result": dispatch_result.text})
+    return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
 
 
 @app.post("/list_resources")
