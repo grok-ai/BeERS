@@ -124,6 +124,9 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
         admins = "\n".join(admins)
         return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
 
+    if not permission_check(request_user=request_user, required_level=PermissionLevel.USER):
+        return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
+
     user: User = User.get_by_id(request_user.user_id)
     if (user_config := user.config) is not None:
         docker_config: Config = client.configs.get(config_id=user_config.id)
