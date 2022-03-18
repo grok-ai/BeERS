@@ -7,6 +7,7 @@ from typing import Mapping, Sequence
 import orjson
 from peewee import (
     CharField,
+    CompositeKey,
     DateTimeField,
     FixedCharField,
     ForeignKeyField,
@@ -87,16 +88,20 @@ class Worker(Model):
 
     @classmethod
     def register(cls, worker_model: WorkerModel) -> "Worker":
-        worker = Worker.select().where(Worker.hostname == worker_model.hostname).get_or_none()
+        worker: Worker = Worker.select().where(Worker.hostname == worker_model.hostname).get_or_none()
 
         if worker is not None:
-            raise DBError(f"Worker hostname collision with ({worker_model}), register denied.")  # TODO
-
-        worker = Worker.create(
-            hostname=worker_model.hostname,
-            ip=worker_model.external_ip,
-            info=worker_model.info,
-        )
+            pylogger.info(f"Updating existing worker {worker} to {worker_model}")
+            worker.ip = worker_model.external_ip
+            worker.info = worker_model.info
+            worker.save()
+        else:
+            pylogger.info(f"Registering new worker {worker_model}")
+            worker = Worker.create(
+                hostname=worker_model.hostname,
+                ip=worker_model.external_ip,
+                info=worker_model.info,
+            )
 
         for gpu in worker_model.gpus:
             GPU.register(gpu_model=gpu, worker_id=worker.hostname)
@@ -129,6 +134,7 @@ class Job(Model):
 
 class GPU(Model):
     worker = ForeignKeyField(model=Worker)
+    uuid = CharField()
     name = CharField()
     index = IntegerField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
@@ -138,10 +144,22 @@ class GPU(Model):
     class Meta:
         database = _db
         indexes = [(("worker", "index"), True)]
+        primary_key = CompositeKey("worker", "uuid")  # TODO: uuid could be enough, if consistent across machines
 
     @classmethod
-    def register(cls, gpu_model: NvidiaGPU, worker_id):
-        GPU.create(worker=worker_id, name=gpu_model.name, index=gpu_model.index, info=gpu_model.info)
+    def register(cls, gpu_model: NvidiaGPU, worker_id) -> "GPU":
+        gpu: GPU = GPU.select().where(GPU.worker == worker_id & GPU.uuid == gpu_model.uuid).get_or_none()
+
+        if gpu is None:
+            gpu = GPU.create(
+                worker=worker_id,
+                uuid=gpu_model.uuid,
+                name=gpu_model.name,
+                index=gpu_model.index,
+                info=gpu_model.info,
+            )
+
+        return gpu
 
     @classmethod
     def by_workers(cls, worker_ids: Sequence[str]) -> Mapping[Worker, Sequence["GPU"]]:
