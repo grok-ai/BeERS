@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, List, Mapping, Sequence
+from typing import Any, List, Mapping, Optional, Sequence
 
 import orjson
 from docker.models.configs import Config
@@ -50,27 +50,27 @@ def add_worker(worker_model: WorkerModel, request: Request):
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"message": e.message})
 
 
-def permission_check(request_user: RequestUser, required_level: PermissionLevel) -> bool:
+def permission_check(request_user: RequestUser, required_level: PermissionLevel) -> Optional[ManagerAnswer]:
     User.update_details(user_id=request_user.user_id, username=request_user.username, full_name=request_user.full_name)
 
-    if not User.permission_check(user_id=request_user.user_id, required_level=required_level.value):
-        return False
-
-    return True
-
-
-@app.post("/set_permission")
-def set_permission(
-    request_user: RequestUser, user_id: str = Body(None), permission_level: PermissionLevel = Body(None)
-):
-
-    if not User.is_registered(user_id=request_user.user_id):
+    if required_level == PermissionLevel.USER and not User.is_registered(user_id=request_user.user_id):
         pylogger.debug(f"<permission_check> User {request_user} not registered")
 
         admins = User.get_admins()
         admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
         admins = "\n".join(admins)
         return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
+
+    if not User.permission_check(user_id=request_user.user_id, required_level=required_level.value):
+        return ManagerAnswer(
+            code=ReturnCodes.PERMISSION_ERROR,
+        )
+
+
+@app.post("/set_permission")
+def set_permission(
+    request_user: RequestUser, user_id: str = Body(None), permission_level: PermissionLevel = Body(None)
+):
 
     if not permission_check(request_user=request_user, required_level=permission_level.higher_permission()):
         return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
@@ -92,16 +92,10 @@ def set_permission(
 
 @app.post("/register_user")
 def register_user(request_user: RequestUser, user_id: str = Body(None)):
-    if not User.is_registered(user_id=request_user.user_id):
-        pylogger.debug(f"<permission_check> User {request_user} not registered")
-
-        admins = User.get_admins()
-        admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
-        admins = "\n".join(admins)
-        return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
-
-    if not permission_check(request_user=request_user, required_level=PermissionLevel.ADMIN):
-        return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.ADMIN)
+    ) is not None:
+        return permission_error
 
     if User.is_registered(user_id=user_id):
         return ManagerAnswer(code=ReturnCodes.ALREADY_REGISTERED_ERROR, data={"user_id": user_id})
@@ -116,16 +110,10 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
 
 @app.post("/set_ssh_key")
 def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
-    if not User.is_registered(user_id=request_user.user_id):
-        pylogger.debug(f"<permission_check> User {request_user} not registered")
-
-        admins = User.get_admins()
-        admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
-        admins = "\n".join(admins)
-        return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
-
-    if not permission_check(request_user=request_user, required_level=PermissionLevel.USER):
-        return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
 
     user: User = User.get_by_id(request_user.user_id)
     if (user_config := user.config) is not None:
@@ -143,12 +131,13 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
 
 @app.post("/job")
 def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
+
     worker: Worker = Worker.get_by_id(pk=job.worker_hostname)
     user: User = User.get_by_id(pk=job.user_id)
-
-    ssh_key: str = user.public_ssh_key if (job_key := job.ssh_access_key) is None else job_key
-    if ssh_key is None:
-        return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
     service: Service = client.services.create(
         image=job.image,
@@ -165,15 +154,15 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         # args=["-d"],
     )
 
-    # job.ssh_access_key = user.public_ssh_key
-
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
 
 
 @app.post("/list_resources")
 def list_resources(request_user: RequestUser, only_online: bool = Body(None), only_available: bool = Body(None)):
-    if not permission_check(request_user=request_user, required_level=PermissionLevel.USER):
-        return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
 
     workers: List[Node] = client.nodes.list(filters={"role": "worker"})
 
