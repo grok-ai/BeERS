@@ -3,6 +3,7 @@ import os
 from typing import Any, List, Mapping, Sequence
 
 import orjson
+from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
 from docker.types import EndpointSpec
@@ -16,7 +17,7 @@ import docker
 import beer  # noqa
 from beer.manager import beer_db
 from beer.manager.api import ManagerAnswer, PermissionLevel, ReturnCodes
-from beer.manager.beer_db import GPU, DBError, User, Worker
+from beer.manager.beer_db import GPU, DBError, User, UserConfig, Worker
 from beer.models import JobRequestModel, RequestUser, WorkerModel
 from beer.utils import run_service
 
@@ -111,6 +112,30 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
         return ManagerAnswer(code=ReturnCodes.REGISTRATION_SUCCESSFUL, data={"user_id": user_id})
     except Exception as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"args": e.args})
+
+
+@app.post("/set_ssh_key")
+def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
+    if not User.is_registered(user_id=request_user.user_id):
+        pylogger.debug(f"<permission_check> User {request_user} not registered")
+
+        admins = User.get_admins()
+        admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
+        admins = "\n".join(admins)
+        return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
+
+    user: User = User.get_by_id(request_user.user_id)
+    if (user_config := user.config) is not None:
+        docker_config: Config = client.configs.get(config_id=user_config.id)
+        docker_config.remove()
+
+    config_name: str = f"ssh-key_{user.id}"
+    config_id = client.configs.create(name=config_name, data=ssh_key)
+
+    user_config = UserConfig.create(id=config_id, name=config_name, public_ssh_key=ssh_key)
+    user.config = user_config
+
+    user.save()
 
 
 @app.post("/job")
