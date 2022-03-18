@@ -35,9 +35,14 @@ class DBError(RuntimeError):
         self.message: str = message
 
 
+class UserConfig(Model):
+    id = CharField(primary_key=True)
+    public_ssh_key = CharField(unique=True)
+
+
 class User(Model):
     id = CharField(primary_key=True)
-    public_ssh_key = CharField(unique=True, null=True, default=None)
+    config = ForeignKeyField(UserConfig, null=True, default=None)
     username = CharField(unique=True, null=True, default=None)
     full_name = CharField(null=True, default=None)
     permission_level = IntegerField(default=2)
