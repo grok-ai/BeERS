@@ -102,7 +102,7 @@ class Worker(Model):
             pylogger.info(f"Updating existing worker {worker} to {worker_model}")
             worker.ip = worker_model.external_ip
             worker.info = worker_model.info
-            worker.save()
+            worker.save(only=[Worker.ip, Worker.info])
         else:
             pylogger.info(f"Registering new worker {worker_model}")
             worker = Worker.create(
