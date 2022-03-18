@@ -141,6 +141,9 @@ def dispatch(request_user: int, job: JobRequestModel):
 
 @app.post("/list_resources")
 def list_resources(request_user: RequestUser, only_online: bool = Body(None), only_available: bool = Body(None)):
+    if not permission_check(request_user=request_user, required_level=PermissionLevel.USER):
+        return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
+
     workers: List[Node] = client.nodes.list(filters={"role": "worker"})
 
     online_workers: List[str] = []
