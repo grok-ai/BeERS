@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from requests import Response
 from telegram import User
 
-from beer.models import RequestUser
+from beer.models import JobRequestModel, RequestUser
 from beer.utils import StrEnum
 
 
@@ -113,5 +113,33 @@ class ManagerAPI:
             endpoint="list_resources",
             json=dict(request_user=build_request_user(request_user).dict(), only_available=True, only_online=True),
         )
+        response: Mapping[str, Any] = response.json()
+        return ManagerAnswer(**response)
+
+    def job(self, request_user: User) -> ManagerAnswer:
+        response: Response = self._request(
+            endpoint="job",
+            json=dict(
+                request_user=build_request_user(request_user).dict(),
+                job=JobRequestModel(
+                    user_id=request_user.id,
+                    image="grokai/beer_job:0.0.1",
+                    name="container_name",
+                    ssh_access_key="fake-ssh-key",
+                    worker_hostname="valentino-desktop",
+                    expected_duration=180,
+                    gpu_device_ids=[0],
+                ).dict(),
+            ),
+        )
+        response: Mapping[str, Any] = response.json()
+        return ManagerAnswer(**response)
+
+    def set_ssh_key(self, request_user: User, ssh_key: str):
+        response: Response = self._request(
+            endpoint="set_ssh_key",
+            json=dict(request_user=build_request_user(request_user).dict(), ssh_key=ssh_key),
+        )
+
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
