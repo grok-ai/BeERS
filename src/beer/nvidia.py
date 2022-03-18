@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 class NvidiaGPU(BaseModel):
     name: str
+    uuid: str
     total_memory: int
     index: int
     info: Mapping[str, Any]
@@ -32,11 +33,11 @@ def query_nvsmi(properties: str, index=None):
 
 
 def get_gpus() -> List:
-    rows = query_nvsmi("index,name,memory.total")
+    rows = query_nvsmi("index,uuid,name,memory.total")
     gpus = []
 
     for row in rows:
-        index, name, total_memory = row
+        index, uuid, name, total_memory = row
         index = int(index)
         total_memory = int(total_memory)
 
@@ -51,6 +52,6 @@ def get_gpus() -> List:
         info = get_clock_speeds()
         info.update(get_max_clock_speeds())
 
-        gpus.append(NvidiaGPU(index=index, name=name, total_memory=total_memory, info=info))
+        gpus.append(NvidiaGPU(index=index, uuid=uuid, name=name, total_memory=total_memory, info=info))
 
     return gpus
