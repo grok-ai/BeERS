@@ -175,5 +175,5 @@ class GPU(Model):
 
 def init(owner_id: str):
     _db.connect(reuse_if_open=True)
-    _db.create_tables(models=[User, Worker, Job, GPU])
+    _db.create_tables(models=[User, UserConfig, Worker, Job, GPU])
     User.register(user_id=owner_id, permission_level=PermissionLevel.OWNER)

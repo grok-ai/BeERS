@@ -6,7 +6,7 @@ import orjson
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
-from docker.types import EndpointSpec, ConfigReference
+from docker.types import ConfigReference, EndpointSpec
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -154,7 +154,11 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         container_labels={"beer.user_id": job.user_id},  # TODO
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
-        configs=[ConfigReference(config_id=user.config.id, config_name=user.config.name, filename="/root/.ssh/authorized_keys")]
+        configs=[
+            ConfigReference(
+                config_id=user.config.id, config_name=user.config.name, filename="/root/.ssh/authorized_keys"
+            )
+        ]
         # args=["-d"],
     )
 
