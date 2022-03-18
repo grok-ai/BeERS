@@ -63,7 +63,7 @@ MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
 
 class ManagerAnswer(BaseModel):
     code: ReturnCodes
-    data: Mapping[str, Any]
+    data: Mapping[str, Any] = {}
 
     @property
     def message(self) -> str:
