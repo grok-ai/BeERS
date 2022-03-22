@@ -86,17 +86,31 @@ class BeerBot:
                 parse_mode="MarkdownV2",
             )
             return
+        # TODO: add the user_id target of this ssh_key as parameter
+        ssh_key = f"{original.text.strip()}\n"
 
-        print(original.document.get_file())
+        request_user: User = update.effective_user
+
+        update_message: ManagerAnswer = self.manager_service.set_ssh_key(request_user=request_user, ssh_key=ssh_key)
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=escape_markdown(update_message.message, version=2),
+            parse_mode="MarkdownV2",
+        )
 
     def delete_user(self, update: Update, context: CallbackContext):
         # TODO
         raise NotImplementedError
 
     def job(self, update: Update, context: CallbackContext):
-        pass
+        request_user: User = update.effective_user
 
-        # print(requests.post(url=f"{self.manager_url}/list_resources", json=))
+        resources_answer: ManagerAnswer = self.manager_service.job(request_user=request_user)
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=escape_markdown(resources_answer.message, version=2),
+            parse_mode="MarkdownV2",
+        )
 
     def resources(self, update: Update, context: CallbackContext):
         request_user: User = update.effective_user
