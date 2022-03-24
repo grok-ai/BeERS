@@ -40,6 +40,11 @@ app = FastAPI(default_response_class=ORJSONResponse, debug=True)
 client = docker.from_env()
 
 
+@app.post("/ready")
+def is_ready():
+    return ManagerAnswer(code=ReturnCodes.READY)
+
+
 @app.post("/join")
 def add_worker(worker_model: WorkerModel, request: Request):
     worker_model.external_ip = request.client.host

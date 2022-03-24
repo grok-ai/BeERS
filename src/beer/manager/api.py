@@ -35,6 +35,7 @@ class ReturnCodes(StrEnum):
     DISPATCH_OK = auto()
     RESOURCES = auto()
     SET_KEY_SUCCESSFUL = auto()
+    READY = auto()
 
     @property
     def is_error(self):
@@ -137,3 +138,12 @@ class ManagerAPI:
 
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
+
+    def check_connection(self):
+        response: Response = self._request(
+            endpoint="ready",
+        )
+
+        response: Mapping[str, Any] = response.json()
+
+        return ManagerAnswer(**response).code == ReturnCodes.READY

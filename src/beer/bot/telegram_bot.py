@@ -15,6 +15,8 @@ class BeerBot:
     def __init__(self, bot_token: str, manager_url: str):
         self.updater = Updater(token=bot_token, use_context=True)
         self.manager_service: ManagerAPI = ManagerAPI(manager_url=manager_url)
+        if not self.manager_service.check_connection():
+            raise RuntimeError(f"Error connecting to BeER manager at: {self.manager_service.manager_url}")
 
     def strip_command(self, message: Message):
         command_entities = [entity for entity in message.entities if entity.type == MessageEntity.BOT_COMMAND]
