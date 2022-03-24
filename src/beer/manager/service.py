@@ -134,6 +134,8 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
 
     user.save(only=[User.config])
 
+    return ManagerAnswer(code=ReturnCodes.SET_KEY_SUCCESSFUL)
+
 
 @app.post("/job")
 def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
