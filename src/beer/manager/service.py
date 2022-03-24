@@ -195,8 +195,7 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
     )
 
 
-def run(worker_token: str):
-    service_port: int = int(os.environ["MANAGER_SERVICE_PORT"])
+def run(worker_token: str, service_port: int):
     service_host: str = os.environ["MANAGER_SERVICE_HOST"]
     owner_id: str = os.environ["OWNER_ID"]
 

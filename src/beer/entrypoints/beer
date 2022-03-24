@@ -171,7 +171,7 @@ def _init_manager(
 
     from beer.manager import service
 
-    service.run(worker_token=worker_token)
+    service.run(worker_token=worker_token, service_port=rest_port)
 
 
 @service_app.command("worker")
