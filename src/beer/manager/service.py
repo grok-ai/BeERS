@@ -121,7 +121,7 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
         pylogger.info(f"Removing Docker config {docker_config.name}")
         docker_config.remove()
 
-    config_name: str = f"ssh-key_{user.id}"
+    config_name: str = f"beer_ssh-key_{user.id}"
     docker_config = client.configs.create(name=config_name, data=ssh_key)
     docker_config.reload()
 
