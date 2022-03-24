@@ -144,6 +144,8 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
 
     worker: Worker = Worker.get_by_id(pk=job.worker_hostname)
     user: User = User.get_by_id(pk=job.user_id)
+    if user.config is None:
+        return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
     service: Service = client.services.create(
         image=job.image,
