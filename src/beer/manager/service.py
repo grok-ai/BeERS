@@ -118,6 +118,7 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
     user: User = User.get_by_id(request_user.user_id)
     if (user_config := user.config) is not None:
         docker_config: Config = client.configs.get(config_id=user_config.id)
+        pylogger.info(f"Removing Docker config {docker_config.name}")
         docker_config.remove()
 
     config_name: str = f"ssh-key_{user.id}"
