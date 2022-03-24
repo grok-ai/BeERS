@@ -6,6 +6,7 @@ from telegram.utils.helpers import escape_markdown
 
 import beer  # noqa
 from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
+from beer.models import JobRequestModel, ResourcesModel
 
 pylogger = logging.getLogger(__name__)
 
@@ -105,7 +106,16 @@ class BeerBot:
     def job(self, update: Update, context: CallbackContext):
         request_user: User = update.effective_user
 
-        resources_answer: ManagerAnswer = self.manager_service.job(request_user=request_user)
+        job = JobRequestModel(
+            user_id=request_user.id,
+            image="grokai/beer_job:0.0.1",
+            name="user_selected_name",
+            worker_hostname="valentino-desktop",
+            resources=ResourcesModel(generic_resources={"gpu": [0]}),
+            expected_duration=180,
+        )
+
+        resources_answer: ManagerAnswer = self.manager_service.job(request_user=request_user, job=job)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=escape_markdown(resources_answer.message, version=2),

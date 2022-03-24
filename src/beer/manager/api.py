@@ -59,7 +59,7 @@ MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
     ReturnCodes.WORKER_INFO: "Worker info",
     ReturnCodes.REGISTRATION_SUCCESSFUL: "Registration successful!",
     ReturnCodes.PERMISSION_OK: "Ok!",
-    ReturnCodes.KEY_MISSING_ERROR: "You first need to *add your public SSH key.",
+    ReturnCodes.KEY_MISSING_ERROR: "You first need to add your public SSH key.",
 }
 
 
@@ -118,19 +118,12 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
 
-    def job(self, request_user: User) -> ManagerAnswer:
+    def job(self, request_user: User, job: JobRequestModel) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="job",
             json=dict(
                 request_user=build_request_user(request_user).dict(),
-                job=JobRequestModel(
-                    user_id=request_user.id,
-                    image="grokai/beer_job:0.0.1",
-                    name="container_name",
-                    worker_hostname="valentino-desktop",
-                    expected_duration=180,
-                    gpu_device_ids=[0],
-                ).dict(),
+                job=job.dict(),
             ),
         )
         response: Mapping[str, Any] = response.json()

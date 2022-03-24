@@ -1,4 +1,4 @@
-from typing import Any, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional
 
 from pydantic import BaseModel
 
@@ -16,15 +16,21 @@ class WorkerModel(BaseModel):
     info: Mapping[str, Any]
 
 
+class ResourcesModel(BaseModel):
+    cpu_limit: Optional[int]
+    mem_limit: Optional[int]
+    cpu_reservation: Optional[int]
+    mem_reservation: Optional[int]
+    generic_resources: Dict | List[Dict]
+
+
 class JobRequestModel(BaseModel):
     user_id: str
     image: str
     name: str
     worker_hostname: str
     expected_duration: int
-    gpu_device_ids: Sequence[int]
-    ram: Optional[int]
-    disk: Optional[int]
+    resources: ResourcesModel
 
 
 class RequestUser(BaseModel):
