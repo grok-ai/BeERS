@@ -38,6 +38,7 @@ class DBError(RuntimeError):
 class UserConfig(Model):
     id = CharField(primary_key=True)
     public_ssh_key = CharField(unique=True)
+    name = CharField(unique=True)
 
     class Meta:
         database = _db
