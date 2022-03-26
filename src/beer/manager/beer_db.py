@@ -146,6 +146,7 @@ class GPU(Model):
     uuid = CharField()
     name = CharField()
     index = IntegerField()
+    total_memory = IntegerField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
     owner = ForeignKeyField(model=User, null=True, default=None)
     current_job = ForeignKeyField(model=Job, null=True, default=None)
@@ -165,6 +166,7 @@ class GPU(Model):
                 uuid=gpu_model.uuid,
                 name=gpu_model.name,
                 index=gpu_model.index,
+                total_memory=gpu_model.total_memory,
                 info=gpu_model.info,
             )
 
