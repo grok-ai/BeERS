@@ -1,12 +1,14 @@
 import logging
 import os
+import time
+from datetime import datetime, timedelta
 from typing import Any, List, Mapping, Optional, Sequence
 
 import orjson
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
-from docker.types import ConfigReference, EndpointSpec, Resources
+from docker.types import ConfigReference, EndpointSpec
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -26,6 +28,8 @@ pylogger = logging.getLogger(__name__)
 _RETURN_CODE_KEY: str = "code"
 _DATA_CODE_KEY: str = "data"
 _WORKER_TOKEN: str
+
+_SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
 
 class ORJSONResponse(JSONResponse):
@@ -167,14 +171,19 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     if user.config is None:
         return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
+    now: float = time.time()
+    now: datetime = datetime.fromtimestamp(now)
+    expire: datetime = now + timedelta(hours=job.expected_duration)
+
     service: Service = client.services.create(
         image=job.image,
-        name=job.name,
+        name=f"{job.user_id}_{now.strftime('%m%d%Y%H%M%S')}",
         tty=True,
-        container_labels={"beer.user_id": job.user_id},  # TODO
+        container_labels={"beer.user_id": job.user_id, "beer.expire": expire.strftime("%m%d%Y%H%M%S")},  # TODO
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
-        resources=Resources(**job.resources.dict()),
+        # resources=Resources(**job.resources.dict()),
+        env=[f"{_SWARM_RESOURCE}={gpu['uuid']}" for gpu in job.gpus],
         configs=[
             ConfigReference(
                 config_id=user.config.id,
@@ -184,6 +193,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         ]
         # args=["-d"],
     )
+    service.reload()
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
 

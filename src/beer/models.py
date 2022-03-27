@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from pydantic import BaseModel
 
@@ -27,10 +27,10 @@ class ResourcesModel(BaseModel):
 class JobRequestModel(BaseModel):
     user_id: str
     image: str
-    name: str
     worker_hostname: str
     expected_duration: int
-    resources: ResourcesModel
+    # resources: ResourcesModel
+    gpus: Sequence[Dict]
 
 
 class RequestUser(BaseModel):
