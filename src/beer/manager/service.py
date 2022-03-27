@@ -143,6 +143,18 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
     return ManagerAnswer(code=ReturnCodes.SET_KEY_SUCCESSFUL)
 
 
+@app.post("/check_ssh_key")
+def check_ssh_key(request_user: RequestUser):
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
+
+    user: User = User.get_by_id(request_user.user_id)
+
+    return ManagerAnswer(code=ReturnCodes.KEY_CHECK, data={"is_set": user.config is not None})
+
+
 @app.post("/job")
 def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     if (

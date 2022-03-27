@@ -36,6 +36,7 @@ class ReturnCodes(StrEnum):
     RESOURCES = auto()
     SET_KEY_SUCCESSFUL = auto()
     READY = auto()
+    KEY_CHECK = auto()
 
     @property
     def is_error(self):
@@ -130,7 +131,7 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
 
-    def set_ssh_key(self, request_user: User, ssh_key: str):
+    def set_ssh_key(self, request_user: User, ssh_key: str) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="set_ssh_key",
             json=dict(request_user=build_request_user(request_user).dict(), ssh_key=ssh_key),
@@ -139,7 +140,7 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
 
-    def check_connection(self):
+    def check_connection(self) -> bool:
         response: Response = self._request(
             endpoint="ready",
         )
@@ -147,3 +148,13 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response).code == ReturnCodes.READY
+
+    def check_ssh_key(self, request_user) -> bool:
+        response: Response = self._request(
+            endpoint="check_ssh_key",
+            json=dict(request_user=build_request_user(request_user).dict()),
+        )
+
+        response: Mapping[str, Any] = response.json()
+
+        return ManagerAnswer(**response).data["is_set"]
