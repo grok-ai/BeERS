@@ -6,7 +6,6 @@ from telegram.utils.helpers import escape_markdown
 
 import beer  # noqa
 from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
-from beer.models import JobRequestModel, ResourcesModel
 
 pylogger = logging.getLogger(__name__)
 
@@ -105,43 +104,16 @@ class BeerBot:
         # TODO
         raise NotImplementedError
 
-    def job(self, update: Update, context: CallbackContext):
-        request_user: User = update.effective_user
-
-        job = JobRequestModel(
-            user_id=request_user.id,
-            image="grokai/beer_job:0.0.1",
-            name="user_selected_name",
-            worker_hostname="valentino-desktop",
-            resources=ResourcesModel(generic_resources={"gpu": [0]}),
-            expected_duration=180,
-        )
-
-        resources_answer: ManagerAnswer = self.manager_service.job(request_user=request_user, job=job)
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=escape_markdown(resources_answer.message, version=2),
-            parse_mode="MarkdownV2",
-        )
-
-    def resources(self, update: Update, context: CallbackContext):
-        request_user: User = update.effective_user
-
-        resources_answer: ManagerAnswer = self.manager_service.list_resources(request_user=request_user)
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=escape_markdown(resources_answer.message, version=2),
-            parse_mode="MarkdownV2",
-        )
-
     def run(self):
         dispatcher = self.updater.dispatcher
 
-        dispatcher.add_handler(CommandHandler("job", self.job))
-        dispatcher.add_handler(CommandHandler("resources", self.resources))
         dispatcher.add_handler(CommandHandler("set_permission", self.set_permission))
         dispatcher.add_handler(CommandHandler("register_user", self.register_user))
         dispatcher.add_handler(CommandHandler("set_ssh_key", self.set_ssh_key))
         dispatcher.add_handler(CommandHandler("delete_user", self.delete_user))
+
+        from beer.bot import job
+
+        dispatcher.add_handler(job.build_handler(bot=self))
 
         self.updater.start_polling()
