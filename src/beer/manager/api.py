@@ -42,14 +42,6 @@ class ReturnCodes(StrEnum):
     def is_error(self):
         return "error" in self.name.lower()
 
-    @classmethod
-    def format(cls):
-        raise NotImplementedError
-
-    @property
-    def message(self):
-        return self.value[1]
-
 
 MESSAGE_FORMAT: Mapping[ReturnCodes, Callable] = {}
 
@@ -149,12 +141,11 @@ class ManagerAPI:
 
         return ManagerAnswer(**response).code == ReturnCodes.READY
 
-    def check_ssh_key(self, request_user) -> bool:
+    def check_ssh_key(self, request_user: User) -> bool:
         response: Response = self._request(
             endpoint="check_ssh_key",
-            json=dict(request_user=build_request_user(request_user).dict()),
+            json=build_request_user(request_user).dict(),
         )
-
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response).data["is_set"]
