@@ -49,7 +49,7 @@ def is_ready():
     return ManagerAnswer(code=ReturnCodes.READY)
 
 
-@app.post("/join")
+@app.post("/join", response_model=ManagerAnswer)
 def add_worker(worker_model: WorkerModel, request: Request):
     worker_model.external_ip = request.client.host
     try:
@@ -76,7 +76,7 @@ def permission_check(request_user: RequestUser, required_level: PermissionLevel)
         )
 
 
-@app.post("/set_permission")
+@app.post("/set_permission", response_model=ManagerAnswer)
 def set_permission(
     request_user: RequestUser, user_id: str = Body(None), permission_level: PermissionLevel = Body(None)
 ):
@@ -99,7 +99,7 @@ def set_permission(
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"args": e.args})
 
 
-@app.post("/register_user")
+@app.post("/register_user", response_model=ManagerAnswer)
 def register_user(request_user: RequestUser, user_id: str = Body(None)):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.ADMIN)
@@ -117,7 +117,7 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"args": e.args})
 
 
-@app.post("/set_ssh_key")
+@app.post("/set_ssh_key", response_model=ManagerAnswer)
 def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
@@ -147,7 +147,7 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
     return ManagerAnswer(code=ReturnCodes.SET_KEY_SUCCESSFUL)
 
 
-@app.post("/check_ssh_key")
+@app.post("/check_ssh_key", response_model=ManagerAnswer)
 def check_ssh_key(request_user: RequestUser):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
@@ -159,7 +159,7 @@ def check_ssh_key(request_user: RequestUser):
     return ManagerAnswer(code=ReturnCodes.KEY_CHECK, data={"is_set": user.config is not None})
 
 
-@app.post("/job")
+@app.post("/job", response_model=ManagerAnswer)
 def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
@@ -198,7 +198,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
 
 
-@app.post("/list_resources")
+@app.post("/list_resources", response_model=ManagerAnswer)
 def list_resources(request_user: RequestUser, only_online: bool = Body(None), only_available: bool = Body(None)):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
