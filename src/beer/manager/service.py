@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any, List, Mapping, Optional, Sequence
 
 import orjson
+from docker.errors import NotFound
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
@@ -19,7 +20,7 @@ import docker
 import beer  # noqa
 from beer.manager import beer_db
 from beer.manager.api import ManagerAnswer, PermissionLevel, ReturnCodes
-from beer.manager.beer_db import GPU, DBError, User, UserConfig, Worker
+from beer.manager.beer_db import GPU, DBError, User, Worker
 from beer.models import JobRequestModel, RequestUser, WorkerModel
 from beer.utils import run_service
 
@@ -33,6 +34,8 @@ _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
 _LABEL_USER_ID: str = "beer.user_id"
 _LABEL_EXPIRE: str = "beer.expire"
+
+_CONFIG_PREFIX: str = "beer_ssh-key_"
 
 
 class ORJSONResponse(JSONResponse):
@@ -83,7 +86,6 @@ def permission_check(request_user: RequestUser, required_level: PermissionLevel)
 def set_permission(
     request_user: RequestUser, user_id: str = Body(None), permission_level: PermissionLevel = Body(None)
 ):
-
     if not permission_check(request_user=request_user, required_level=permission_level.higher_permission()):
         return ManagerAnswer(code=ReturnCodes.PERMISSION_ERROR, data={})
 
@@ -128,12 +130,16 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
         return permission_error
 
     user: User = User.get_by_id(request_user.user_id)
-    if (user_config := user.config) is not None:
-        docker_config: Config = client.configs.get(config_id=user_config.id)
+    config_name: str = f"{_CONFIG_PREFIX}{user.id}"
+
+    try:
+        # Even if configs.get is documented as working by id, it works by name too
+        docker_config: Config = client.configs.get(config_name)
         pylogger.info(f"Removing Docker config {docker_config.name}")
         docker_config.remove()
+    except NotFound:
+        pass
 
-    config_name: str = f"beer_ssh-key_{user.id}"
     docker_config = client.configs.create(name=config_name, data=ssh_key)
     docker_config.reload()
 
@@ -142,10 +148,9 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
             code=ReturnCodes.RUNTIME_ERROR, data={"config_name": config_name, "docker_config_name": docker_config.name}
         )
 
-    user_config = UserConfig.create(id=docker_config.id, name=docker_config.name, public_ssh_key=ssh_key)
-    user.config = user_config
+    user.public_ssh_key = ssh_key
 
-    user.save(only=[User.config])
+    user.save(only=[User.public_ssh_key])
 
     return ManagerAnswer(code=ReturnCodes.SET_KEY_SUCCESSFUL)
 
@@ -159,7 +164,7 @@ def check_ssh_key(request_user: RequestUser):
 
     user: User = User.get_by_id(request_user.user_id)
 
-    return ManagerAnswer(code=ReturnCodes.KEY_CHECK, data={"is_set": user.config is not None})
+    return ManagerAnswer(code=ReturnCodes.KEY_CHECK, data={"is_set": user.public_ssh_key is not None})
 
 
 @app.post("/job", response_model=ManagerAnswer)
@@ -171,12 +176,17 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
 
     worker: Worker = Worker.get_by_id(pk=job.worker_hostname)
     user: User = User.get_by_id(pk=job.user_id)
-    if user.config is None:
+    if user.public_ssh_key is None:
         return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
     now: float = time.time()
     now: datetime = datetime.fromtimestamp(now)
     expire: datetime = now + timedelta(hours=job.expected_duration)
+
+    try:
+        docker_config: Config = client.configs.get(f"{_CONFIG_PREFIX}{user.id}")
+    except NotFound:
+        return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
     service: Service = client.services.create(
         image=job.image,
@@ -189,8 +199,8 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         env=[f"{_SWARM_RESOURCE}={gpu['uuid']}" for gpu in job.gpus],
         configs=[
             ConfigReference(
-                config_id=user.config.id,
-                config_name=user.config.name,
+                config_id=docker_config.id,
+                config_name=docker_config.name,
                 filename="/root/.ssh/authorized_keys",
             )
         ]

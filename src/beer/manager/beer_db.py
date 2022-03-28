@@ -35,21 +35,12 @@ class DBError(RuntimeError):
         self.message: str = message
 
 
-class UserConfig(Model):
-    id = CharField(primary_key=True)
-    public_ssh_key = CharField(unique=True)
-    name = CharField(unique=True)
-
-    class Meta:
-        database = _db
-
-
 class User(Model):
     id = CharField(primary_key=True)
-    config = ForeignKeyField(UserConfig, null=True, default=None)
     username = CharField(unique=True, null=True, default=None)
     full_name = CharField(null=True, default=None)
     permission_level = IntegerField(default=2)
+    public_ssh_key = CharField(unique=True, null=True, default=None)
 
     class Meta:
         database = _db
@@ -181,5 +172,5 @@ class GPU(Model):
 
 def init(owner_id: str):
     _db.connect(reuse_if_open=True)
-    _db.create_tables(models=[User, UserConfig, Worker, Job, GPU])
+    _db.create_tables(models=[User, Worker, Job, GPU])
     User.register(user_id=owner_id, permission_level=PermissionLevel.OWNER)
