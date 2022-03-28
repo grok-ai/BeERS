@@ -1,5 +1,5 @@
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
-name: Publish Docker image
+name: Publish beer_job Docker image
 
 #on:
 #  release:
@@ -10,6 +10,8 @@ on:
     branches:
       - develop
       - main
+    paths:
+      - '**/beer_job.Dockerfile'
 
 jobs:
   push_to_registry:
