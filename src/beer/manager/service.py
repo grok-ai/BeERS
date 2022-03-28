@@ -182,7 +182,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         image=job.image,
         name=f"{job.user_id}_{now.strftime('%m%d%Y%H%M%S')}",
         tty=True,
-        container_labels={_LABEL_USER_ID: job.user_id, _LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S")},  # TODO
+        labels={_LABEL_USER_ID: job.user_id, _LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S")},
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
         # resources=Resources(**job.resources.dict()),
