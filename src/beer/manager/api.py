@@ -28,6 +28,7 @@ class ReturnCodes(StrEnum):
     NOT_REGISTERED_ERROR = auto()
     KEY_MISSING_ERROR = auto()
     RUNTIME_ERROR = auto()
+    KEY_IN_USE_ERROR = auto()
 
     WORKER_INFO = auto()
     REGISTRATION_SUCCESSFUL = auto()
@@ -55,6 +56,7 @@ MESSAGE_TEMPLATES: Mapping[ReturnCodes, str] = {
     ReturnCodes.REGISTRATION_SUCCESSFUL: "Registration successful!",
     ReturnCodes.PERMISSION_OK: "Ok!",
     ReturnCodes.KEY_MISSING_ERROR: "You first need to add your public SSH key.",
+    ReturnCodes.KEY_IN_USE_ERROR: "Can't update your SSH key while in use in job(s).",
 }
 
 

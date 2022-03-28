@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any, List, Mapping, Optional, Sequence
 
 import orjson
-from docker.errors import NotFound
+from docker.errors import APIError, NotFound
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
@@ -139,6 +139,10 @@ def set_ssh_key(request_user: RequestUser, ssh_key: str = Body(None)):
         docker_config.remove()
     except NotFound:
         pass
+    except APIError as e:
+        # TODO
+        if "in use by the following service" in e.explanation:
+            return ManagerAnswer(code=ReturnCodes.KEY_IN_USE_ERROR, data={})
 
     docker_config = client.configs.create(name=config_name, data=ssh_key)
     docker_config.reload()
