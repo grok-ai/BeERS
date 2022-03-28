@@ -1,7 +1,7 @@
 import logging
 
-from telegram import Message, MessageEntity, Update, User
-from telegram.ext import CallbackContext, CommandHandler, Updater
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, MessageEntity, Update, User
+from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Updater
 from telegram.utils.helpers import escape_markdown
 
 import beer  # noqa
@@ -104,6 +104,28 @@ class BeerBot:
         # TODO
         raise NotImplementedError
 
+    def job(self, update: Update, context: CallbackContext):
+        actions = [
+            InlineKeyboardButton(text=action_name, callback_data=action_cb)
+            for action_name, action_cb in (("List Jobs", "cb_list_job"), ("New Job", "cb_new_job"))
+        ]
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Please select an action",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([actions]),
+        )
+
+    def job_list(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        query.answer()
+
+        request_user: User = update.effective_user
+
+        user_jobs = self.manager_service.job_list(request_user=request_user)
+        print(user_jobs)
+
     def run(self):
         dispatcher = self.updater.dispatcher
 
@@ -111,9 +133,11 @@ class BeerBot:
         dispatcher.add_handler(CommandHandler("register_user", self.register_user))
         dispatcher.add_handler(CommandHandler("set_ssh_key", self.set_ssh_key))
         dispatcher.add_handler(CommandHandler("delete_user", self.delete_user))
+        dispatcher.add_handler(CommandHandler("job", self.job))
+        dispatcher.add_handler(CallbackQueryHandler(self.job_list, pattern="cb_list_job"))
 
         from beer.bot import job
 
-        dispatcher.add_handler(job.build_handler(bot=self))
+        dispatcher.add_handler(job.build_handler(bot=self, new_job_cb="cb_new_job"))
 
         self.updater.start_polling()

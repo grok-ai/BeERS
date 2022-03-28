@@ -4,14 +4,7 @@ from enum import auto
 from typing import List
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, User
-from telegram.ext import (
-    CallbackContext,
-    CallbackQueryHandler,
-    CommandHandler,
-    ConversationHandler,
-    Filters,
-    MessageHandler,
-)
+from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 
 from beer.bot.telegram_bot import BeerBot
 from beer.manager.api import MESSAGE_TEMPLATES, ManagerAnswer, ReturnCodes
@@ -39,6 +32,8 @@ class JobDefinition:
         self.bot = bot
 
     def job(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        query.answer()
         request_user: User = update.effective_user
 
         if not self.bot.manager_service.check_ssh_key(request_user=request_user):
@@ -238,11 +233,11 @@ class JobDefinition:
         )
 
 
-def build_handler(bot: BeerBot) -> ConversationHandler:
+def build_handler(bot: BeerBot, new_job_cb: str) -> ConversationHandler:
     job_definition = JobDefinition(bot=bot)
 
     return ConversationHandler(
-        entry_points=[CommandHandler("job", job_definition.job)],
+        entry_points=[CallbackQueryHandler(job_definition.job, pass_user_data=True, pattern=new_job_cb)],
         states={
             JobStates.GPU: [MessageHandler(Filters.regex("^\\d+$"), job_definition.gpu)],
             JobStates.IMAGE: [

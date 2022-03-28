@@ -37,6 +37,7 @@ class ReturnCodes(StrEnum):
     SET_KEY_SUCCESSFUL = auto()
     READY = auto()
     KEY_CHECK = auto()
+    JOB_LIST = auto()
 
     @property
     def is_error(self):
@@ -149,3 +150,12 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response).data["is_set"]
+
+    def job_list(self, request_user: User) -> ManagerAnswer:
+        response: Response = self._request(
+            endpoint="job_list",
+            json=build_request_user(request_user).dict(),
+        )
+        response: Mapping[str, Any] = response.json()
+
+        return ManagerAnswer(**response)

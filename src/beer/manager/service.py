@@ -31,6 +31,9 @@ _WORKER_TOKEN: str
 
 _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
+_LABEL_USER_ID: str = "beer.user_id"
+_LABEL_EXPIRE: str = "beer.expire"
+
 
 class ORJSONResponse(JSONResponse):
     media_type = "application/json"
@@ -179,7 +182,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         image=job.image,
         name=f"{job.user_id}_{now.strftime('%m%d%Y%H%M%S')}",
         tty=True,
-        container_labels={"beer.user_id": job.user_id, "beer.expire": expire.strftime("%m%d%Y%H%M%S")},  # TODO
+        container_labels={_LABEL_USER_ID: job.user_id, _LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S")},  # TODO
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
         # resources=Resources(**job.resources.dict()),
@@ -196,6 +199,24 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     service.reload()
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
+
+
+@app.post("/job_list", response_model=ManagerAnswer)
+def job_list(request_user: RequestUser):
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
+
+    user: User = User.get_by_id(pk=request_user.user_id)
+
+    services: Sequence[Service] = [
+        service
+        for service in client.services.list(filters={"label": _LABEL_USER_ID})
+        if service.attrs["Spec"]["Labels"][_LABEL_USER_ID] == user.id
+    ]
+
+    return ManagerAnswer(code=ReturnCodes.JOB_LIST, data={"services": [service.attrs for service in services]})
 
 
 @app.post("/list_resources", response_model=ManagerAnswer)
