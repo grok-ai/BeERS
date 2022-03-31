@@ -81,6 +81,7 @@ class Worker(Model):
     hostname = CharField(primary_key=True, max_length=42)
     # node_id = CharField()  # swarm id
     ip = IPField()
+    volumes_root = CharField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
 
     class Meta:
@@ -93,6 +94,7 @@ class Worker(Model):
         if worker is not None:
             pylogger.info(f"Updating existing worker {worker} to {worker_model}")
             worker.ip = worker_model.external_ip
+            worker.volumes_root = worker_model.volumes_root
             worker.info = worker_model.info
             worker.save(only=[Worker.ip, Worker.info])
         else:
@@ -100,6 +102,7 @@ class Worker(Model):
             worker = Worker.create(
                 hostname=worker_model.hostname,
                 ip=worker_model.external_ip,
+                volumes_root=worker_model.volumes_root,
                 info=worker_model.info,
             )
 

@@ -13,6 +13,7 @@ class WorkerModel(BaseModel):
     # ram: Mapping[str, int]
     # disk: Mapping[str, int]
 
+    volumes_root: str
     info: Mapping[str, Any]
 
 

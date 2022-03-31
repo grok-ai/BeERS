@@ -207,7 +207,8 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
                 config_name=docker_config.name,
                 filename="/root/.ssh/authorized_keys",
             )
-        ]
+        ],
+        mount=[f"{worker.volumes_root}/{user.id}:{job.volume_mount}:rw"]
         # args=["-d"],
     )
     service.reload()

@@ -12,7 +12,7 @@ from beer.models import WorkerModel
 
 pylogger = logging.getLogger(__name__)
 
-_VOLUME_DISK_PATH: str = os.environ["WORKER_VOLUME_DISK_PATH"]
+_VOLUMES_ROOT_DIR: str = os.environ["VOLUMES_ROOT_DIR"]
 
 
 def build_worker_specs() -> WorkerModel:
@@ -31,7 +31,7 @@ def build_worker_specs() -> WorkerModel:
             "machine": platform.machine(),
         }
 
-        disk = psutil.disk_usage(_VOLUME_DISK_PATH)
+        disk = psutil.disk_usage(_VOLUMES_ROOT_DIR)
         unit_measure = 1024.0**3
 
         disk = dict(
@@ -53,6 +53,7 @@ def build_worker_specs() -> WorkerModel:
             node_id=None,
             hostname=platform.uname().node,
             info=info,
+            volumes_root=_VOLUMES_ROOT_DIR,
             # ram=ram,
             # disk=disk,
             gpus=nvidia.get_gpus(),
