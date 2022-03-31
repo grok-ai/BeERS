@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from datetime import datetime, timedelta
 from typing import Any, List, Mapping, Optional, Sequence
@@ -28,7 +27,6 @@ pylogger = logging.getLogger(__name__)
 
 _RETURN_CODE_KEY: str = "code"
 _DATA_CODE_KEY: str = "data"
-_WORKER_TOKEN: str
 
 _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
@@ -264,13 +262,7 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
     )
 
 
-def run(worker_token: str, service_port: int):
-    service_host: str = os.environ["MANAGER_SERVICE_HOST"]
-    owner_id: str = os.environ["OWNER_ID"]
-
+def run(service_port: int, service_host: str, owner_id: str):
     beer_db.init(owner_id=owner_id)
-
-    global _WORKER_TOKEN
-    _WORKER_TOKEN = worker_token
 
     run_service(app=app, service_host=service_host, service_port=service_port)

@@ -115,7 +115,9 @@ def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: b
 def _init_manager(
     ip: str = typer.Option(..., prompt=True, envvar="MANAGER_IP"),
     swarm_port: int = typer.Option(..., prompt=True, envvar="MANAGER_SWARM_PORT"),
-    rest_port: int = typer.Option(..., prompt=True, envvar="MANAGER_REST_PORT"),
+    rest_port: int = typer.Option(4242, prompt=True, envvar="MANAGER_REST_PORT"),
+    rest_host: str = typer.Option("0.0.0.0", prompt=True, envvar="MANAGER_REST_HOST"),
+    owner_id: str = typer.Option(..., prompt=True, envvar="OWNER_ID"),
     hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
     #
     traefik: bool = typer.Option(False, prompt=True, envvar="USE_TRAEFIK"),
@@ -130,16 +132,19 @@ def _init_manager(
     swarmprom_base_domain: str = typer.Option(None, prompt=False, envvar="SWARMPROM_BASE_DOMAIN"),
     swarmprom_user: str = typer.Option(None, prompt=False, envvar="SWARMPROM_USER"),
     #
-    force_reset: bool = typer.Option(True, prompt=True, envvar="FORCE_RESET"),
+    swarm_reset: bool = typer.Option(True, prompt=True, envvar="SWARM_RESET"),
 ):
     import docker
 
     client = docker.from_env()
 
-    manager_id: str = client.swarm.init(
+    if swarm_reset:
+        client.swarm.leave(force=True)
+
+    _: str = client.swarm.init(
         # advertise_addr="tun0",
         listen_addr=f"{ip}:{swarm_port}",
-        force_new_cluster=force_reset,
+        force_new_cluster=swarm_reset,
         # default_addr_pool=["10.43.0.0/16"],
         # subnet_size=24,
         # snapshot_interval=5000,
@@ -152,26 +157,26 @@ def _init_manager(
     # if traefik:
     #     _setup_traefik(
     #         hostname=hostname,
-    #         force_reset=force_reset,
+    #         force_reset=swarm_reset,
     #         traefik_domain=traefik_domain,
     #         traefik_email=traefik_email,
     #         traefik_username=traefik_username,
     #     )
     #
     # if swarmpit:
-    #     _setup_swarmpit(swarmpit_domain=swarmpit_domain, traefik=traefik, force_reset=force_reset)
+    #     _setup_swarmpit(swarmpit_domain=swarmpit_domain, traefik=traefik, force_reset=swarm_reset)
     #
     # if swarmprom:
     #     _setup_swarmprom(
     #         swarmprom_base_domain=swarmprom_base_domain,
     #         swarmprom_user=swarmprom_user,
     #         traefik=traefik,
-    #         force_reset=force_reset,
+    #         force_reset=swarm_reset,
     #     )
 
     from beer.manager import service
 
-    service.run(worker_token=worker_token, service_port=rest_port)
+    service.run(service_host=rest_host, service_port=rest_port, owner_id=owner_id)
 
 
 @service_app.command("worker")
