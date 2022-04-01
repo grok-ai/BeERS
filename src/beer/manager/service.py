@@ -206,7 +206,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
                 filename="/root/.ssh/authorized_keys",
             )
         ],
-        mount=[f"{worker.volumes_root}/{user.id}:{job.volume_mount}:rw"]
+        mounts=[f"{job.volume_mount}:{worker.volumes_root}/{user.id}:rw"]
         # args=["-d"],
     )
     service.reload()
