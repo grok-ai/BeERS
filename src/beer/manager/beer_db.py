@@ -96,7 +96,7 @@ class Worker(Model):
             worker.ip = worker_model.external_ip
             worker.volumes_root = worker_model.volumes_root
             worker.info = worker_model.info
-            worker.save(only=[Worker.ip, Worker.info])
+            worker.save(only=[Worker.ip, Worker.info, Worker.volumes_root])
         else:
             pylogger.info(f"Registering new worker {worker_model}")
             worker = Worker.create(
