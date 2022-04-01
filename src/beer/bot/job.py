@@ -1,5 +1,6 @@
 import json
 import logging
+import os.path
 from enum import auto
 from typing import List
 
@@ -18,13 +19,17 @@ class JobStates(StrEnum):
     WORKER = auto()
     GPU = auto()
     IMAGE = auto()
+    MOUNT = auto()
     DURATION = auto()
     CONFIRM = auto()
 
 
 _PREDEFINED_IMAGES: List[str] = ["grokai/beer_job:0.0.1"]
+_PREDEFINED_MOUNTS: List[str] = ["/home/beer/data"]
+
 _CB_IMAGE_PREFIX: str = "cb_image_"
 _CB_FINAL: str = "cb_final_"
+_CB_MOUNT: str = "cb_mount_"
 
 
 class JobDefinition:
@@ -69,13 +74,13 @@ class JobDefinition:
 
     def format_gpus(self, resources):
         gpus = [
-            (gpu["name"], gpu.get("owner", None), f'{gpu["total_memory"]}MB')
-            for gpu_list in resources["gpus"].values()
+            (gpu["name"], gpu.get("owner", None), f'{gpu["total_memory"]}MB', worker)
+            for worker, gpu_list in resources["gpus"].items()
             for gpu in gpu_list
         ]
         gpus_string: str = "\n\n".join(
-            f"<b>Index: {i}</b> | <b>Name</b>: {name} | <b>Memory</b>: {memory} | <b>Owner</b>: {owner}"
-            for i, (name, owner, memory) in enumerate(gpus)
+            f"<b>Index: {i}</b> | <b>Name</b>: {name} | <b>Memory</b>: {memory} | <b>Worker</b>: {worker} | <b>Owner</b>: {owner}"
+            for i, (name, owner, memory, worker) in enumerate(gpus)
         )
 
         return gpus_string
@@ -130,6 +135,59 @@ class JobDefinition:
 
         query.answer(f"Image selected: {image}")
 
+        mounts = [
+            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT}{i}")
+            for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
+        ]
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Please now type the mount location for the user-specific volume (persistent data).\n"
+            "The path has to be absolute as the default one.\n"
+            "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[mounts]),
+        )
+
+        return JobStates.MOUNT
+
+    def image(self, update: Update, context: CallbackContext):
+        # TODO: image validation/availability check
+        context.user_data["job"]["image"] = update.message.text.strip()
+
+        mounts = [
+            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT}{i}")
+            for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
+        ]
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Please now type the mount location for the user-specific volume (persistent data).\n"
+            "The path has to be absolute as the default one.\n"
+            "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[mounts]),
+        )
+
+        return JobStates.MOUNT
+
+    def mount_cb(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        if not query.data.startswith(_CB_MOUNT):
+            query.answer("Something went wrong. Type the image name instead of using buttons.")
+            return JobStates.MOUNT
+
+        try:
+            mount_index = int(query.data[len(_CB_MOUNT) :])
+            # TODO: image validation/availability check
+            mount: str = _PREDEFINED_MOUNTS[mount_index]
+            context.user_data["job"]["mount"] = mount
+        except Exception:
+            query.answer("Something went wrong. Type the mount path instead of using buttons.")
+            return JobStates.MOUNT
+
+        query.answer(f"Mount selected: {mount}")
+
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="Please now type the expected duration of this job.\n\n"
@@ -140,9 +198,19 @@ class JobDefinition:
 
         return JobStates.DURATION
 
-    def image(self, update: Update, context: CallbackContext):
-        # TODO: image validation/availability check
-        context.user_data["job"]["image"] = update.message.text.strip()
+    def mount(self, update: Update, context: CallbackContext):
+        mount_path: str = update.message.text.strip()
+
+        if not os.path.isabs(mount_path):
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Please now type an <b>absolute path</b>. "
+                "Keeping in mind that the default home is <code>/home/beer</code>",
+                parse_mode="HTML",
+            )
+            return JobStates.MOUNT
+
+        context.user_data["job"]["mount"] = mount_path
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -151,6 +219,7 @@ class JobDefinition:
             "You'll just get notified and asked to adjust the expected duration.",
             parse_mode="HTML",
         )
+
         return JobStates.DURATION
 
     def duration(self, update: Update, context: CallbackContext):
@@ -203,6 +272,7 @@ class JobDefinition:
                 worker_hostname=workers.pop(),
                 gpus=job_details["gpus"],
                 expected_duration=job_details["duration"],
+                volume_mount=job_details["mount"],
             )
 
             resources_answer: ManagerAnswer = self.bot.manager_service.job(request_user=request_user, job=job)
@@ -243,6 +313,10 @@ def build_handler(bot: BeerBot, new_job_cb: str) -> ConversationHandler:
             JobStates.IMAGE: [
                 MessageHandler(Filters.text, job_definition.image),
                 CallbackQueryHandler(job_definition.image_cb, pass_user_data=True, pattern=f"^{_CB_IMAGE_PREFIX}"),
+            ],
+            JobStates.MOUNT: [
+                CallbackQueryHandler(job_definition.mount_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT}"),
+                MessageHandler(Filters.text, job_definition.mount),
             ],
             JobStates.DURATION: [MessageHandler(Filters.regex("^\\d+$"), job_definition.duration)],
             JobStates.CONFIRM: [

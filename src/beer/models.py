@@ -31,6 +31,7 @@ class JobRequestModel(BaseModel):
     worker_hostname: str
     expected_duration: int
     # resources: ResourcesModel
+    volume_mount: str = "/data"
     gpus: Sequence[Dict]
 
 

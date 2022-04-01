@@ -50,7 +50,6 @@ def build_worker_specs() -> WorkerModel:
         )
 
         return WorkerModel(
-            node_id=None,
             hostname=platform.uname().node,
             info=info,
             volumes_root=_VOLUMES_ROOT_DIR,

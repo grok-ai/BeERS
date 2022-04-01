@@ -96,8 +96,8 @@ class BeerBot:
         update_message: ManagerAnswer = self.manager_service.set_ssh_key(request_user=request_user, ssh_key=ssh_key)
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=escape_markdown(update_message.message, version=2),
-            parse_mode="MarkdownV2",
+            text=update_message.message,
+            parse_mode="HTML",
         )
 
     def delete_user(self, update: Update, context: CallbackContext):
