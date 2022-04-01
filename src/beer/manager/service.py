@@ -8,7 +8,7 @@ from docker.errors import APIError, NotFound
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
-from docker.types import ConfigReference, EndpointSpec
+from docker.types import ConfigReference, EndpointSpec, Mount
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -206,7 +206,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
                 filename="/root/.ssh/authorized_keys",
             )
         ],
-        mounts=[f"{job.volume_mount}:{worker.volumes_root}/{user.id}:rw"]
+        mounts=[Mount(target=job.volume_mount, source=user.id, type="volume")]
         # args=["-d"],
     )
     service.reload()
