@@ -2,6 +2,9 @@
 # Adapted from http://cowlet.org/2018/05/21/accessing-gpus-from-a-docker-swarm-service.html and
 # https://gist.github.com/tomlankhorst/33da3c4b9edbde5c83fc1244f010815c
 
+NFS_DIR="${1:-1}"
+NFS_ALLOWED_RULE="${2:-*}"
+
 # TODO: mandatory?
 sudo mkdir -p /etc/systemd/system/docker.service.d
 
@@ -40,3 +43,14 @@ sudo sed -i '1iswarm-resource = "DOCKER_RESOURCE_GPU"' /etc/nvidia-container-run
 # Reload the Docker daemon
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+
+# NFS setup
+if [[ "$NFS_DIR" != 1 ]]; then
+  sudo apt update
+  sudo apt install nfs-kernel-server
+
+  cat <<EOF | sudo tee /etc/exports
+$NFS_DIR  $NFS_ALLOWED_RULE(rw,no_root_squash,subtree_check)
+EOF
+  sudo systemctl enable --now nfs-kernel-server
+fi
