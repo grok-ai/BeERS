@@ -8,7 +8,7 @@ from docker.errors import APIError, NotFound
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
-from docker.types import ConfigReference, EndpointSpec, Mount
+from docker.types import ConfigReference, DriverConfig, EndpointSpec, Mount
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -32,6 +32,7 @@ _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
 _LABEL_USER_ID: str = "beer.user_id"
 _LABEL_EXPIRE: str = "beer.expire"
+_LABEL_NFS_SERVER: str = "beer.nfs_server"
 
 _CONFIG_PREFIX: str = "beer_ssh-key_"
 
@@ -48,6 +49,12 @@ app = FastAPI(default_response_class=ORJSONResponse, debug=True)
 client = docker.from_env()
 
 
+def _update_users():
+    all_users: Sequence[User] = User.having_permission(permission_level=PermissionLevel.USER.value)
+    nfs_workers = client.nodes.list(filters={"label": _LABEL_NFS_SERVER})
+    all_users, nfs_workers
+
+
 @app.post("/ready")
 def is_ready():
     return ManagerAnswer(code=ReturnCodes.READY)
@@ -57,7 +64,10 @@ def is_ready():
 def add_worker(worker_model: WorkerModel, request: Request):
     worker_model.external_ip = request.client.host
     try:
+        # DB registration
         worker = Worker.register(worker_model=worker_model)
+        # Swarm node update
+        client.nodes.list()
         return ManagerAnswer(code=ReturnCodes.WORKER_INFO, data={"info": worker.__data__})
     except DBError as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"message": e.message})
@@ -69,7 +79,7 @@ def permission_check(request_user: RequestUser, required_level: PermissionLevel)
     if required_level == PermissionLevel.USER and not User.is_registered(user_id=request_user.user_id):
         pylogger.debug(f"<permission_check> User {request_user} not registered")
 
-        admins = User.get_admins()
+        admins = User.having_permission(permission_level=PermissionLevel.ADMIN.value)
         admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
         admins = "\n".join(admins)
         return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
@@ -206,7 +216,21 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
                 filename="/root/.ssh/authorized_keys",
             )
         ],
-        mounts=[Mount(target=job.volume_mount, source=user.id, type="volume")]
+        mounts=[
+            Mount(
+                target=job.volume_mount,
+                source=user.id,
+                type="volume",
+                driver_config=DriverConfig(
+                    name="local",
+                    options={
+                        "type": "nfs4",
+                        "device": f":{worker.local_nfs_root}/{user.id}",
+                        "o": f"addr={worker.ip},nfsvers=4,nolock,soft,rw",
+                    },
+                ),
+            )
+        ]
         # args=["-d"],
     )
     service.reload()
