@@ -152,7 +152,10 @@ class ManagerAPI:
         )
         response: Mapping[str, Any] = response.json()
 
-        return ManagerAnswer(**response).data["is_set"]
+        try:
+            return ManagerAnswer(**response).data["is_set"]
+        except Exception:
+            return False
 
     def job_list(self, request_user: User) -> ManagerAnswer:
         response: Response = self._request(

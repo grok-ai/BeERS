@@ -1,7 +1,7 @@
 import logging
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, MessageEntity, Update, User
-from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Updater
+from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Filters, Updater
 from telegram.utils.helpers import escape_markdown
 
 import beer  # noqa
@@ -85,7 +85,6 @@ class BeerBot:
                 chat_id=update.effective_chat.id,
                 # TODO
                 text="You must use the /set_ssh_key command replying to the file containing the actual public key (which has to be sent before)",
-                parse_mode="MarkdownV2",
             )
             return
         # TODO: add the user_id target of this ssh_key as parameter
@@ -105,6 +104,7 @@ class BeerBot:
         raise NotImplementedError
 
     def job(self, update: Update, context: CallbackContext):
+        # TODO: check API permission
         actions = [
             InlineKeyboardButton(text=action_name, callback_data=action_cb)
             for action_name, action_cb in (("List Jobs", "cb_list_job"), ("New Job", "cb_new_job"))
@@ -129,11 +129,15 @@ class BeerBot:
     def run(self):
         dispatcher = self.updater.dispatcher
 
-        dispatcher.add_handler(CommandHandler("set_permission", self.set_permission))
-        dispatcher.add_handler(CommandHandler("register_user", self.register_user))
-        dispatcher.add_handler(CommandHandler("set_ssh_key", self.set_ssh_key))
-        dispatcher.add_handler(CommandHandler("delete_user", self.delete_user))
-        dispatcher.add_handler(CommandHandler("job", self.job))
+        dispatcher.add_handler(
+            CommandHandler("set_permission", self.set_permission, filters=~Filters.update.edited_message)
+        )
+        dispatcher.add_handler(
+            CommandHandler("register_user", self.register_user, filters=~Filters.update.edited_message)
+        )
+        dispatcher.add_handler(CommandHandler("set_ssh_key", self.set_ssh_key, filters=~Filters.update.edited_message))
+        dispatcher.add_handler(CommandHandler("delete_user", self.delete_user, filters=~Filters.update.edited_message))
+        dispatcher.add_handler(CommandHandler("job", self.job, filters=~Filters.update.edited_message))
         dispatcher.add_handler(CallbackQueryHandler(self.job_list, pattern="cb_list_job"))
 
         from beer.bot import job
