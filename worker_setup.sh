@@ -9,20 +9,30 @@ NFS_ALLOWED_RULE="${2:-*}"
 sudo mkdir -p /etc/systemd/system/docker.service.d
 
 # https://stackoverflow.com/a/17841619
-function join_by { local IFS="$1"; shift; echo "$*"; }
+function join_by {
+  local IFS="$1"
+  shift
+  echo "$*"
+}
 
 GPU_IDS=$(nvidia-smi -a | grep UUID | awk '{print $4}')
 
 gpu_resources=()
 for gpu_id in $GPU_IDS; do
-    gpu_resources+=("\"GPU=$gpu_id\"")
+  gpu_resources+=("\"GPU=$gpu_id\"")
 done
 
 gpus_list=$(join_by , "${gpu_resources[@]}")
 
+# Fetch RAM quantity to update the shared memory option
+ram=$(free -g | awk '/^Mem:/{print $2}')
+ram=$((ram/2))
+
+
 # This solution needs nvidia-container-runtime to be available!
 cat <<EOF | sudo tee /etc/docker/daemon.json
 {
+  "default-shm-size": "${ram}G",
   "node-generic-resources": [
     $gpus_list
   ],
