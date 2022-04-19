@@ -79,7 +79,6 @@ class User(Model):
 
 class Worker(Model):
     hostname = CharField(primary_key=True, max_length=42)
-    node_id = CharField(unique=True)  # swarm id
     ip = IPField()
     local_nfs_root = CharField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)

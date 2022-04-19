@@ -49,10 +49,27 @@ app = FastAPI(default_response_class=ORJSONResponse, debug=True)
 client = docker.from_env()
 
 
-def _update_users():
-    all_users: Sequence[User] = User.having_permission(permission_level=PermissionLevel.USER.value)
-    nfs_workers = client.nodes.list(filters={"label": _LABEL_NFS_SERVER})
-    all_users, nfs_workers
+def _update_nfs_nodes(workers: Sequence[Node]):
+    users: Sequence[User] = User.having_permission(permission_level=PermissionLevel.USER.value)
+
+    for worker in workers:
+        labels = worker.attrs["Spec"]["Labels"]
+        assert _LABEL_NFS_SERVER in labels
+
+        client.services.create(
+            image="alpine:latest",
+            name="update_nfs_nodes",
+            # tty=True,
+            command=["mkdir", "-p", *(f"/data/{user}" for user in users)],
+            constraints=[f"node.hostname=={worker.attrs['Description']['Hostname']}"],
+            mounts=[
+                Mount(
+                    target="/data",
+                    source=labels[_LABEL_NFS_SERVER],
+                    type="bind",
+                )
+            ],
+        )
 
 
 @app.post("/ready")
@@ -66,8 +83,20 @@ def add_worker(worker_model: WorkerModel, request: Request):
     try:
         # DB registration
         worker = Worker.register(worker_model=worker_model)
-        # Swarm node update
-        client.nodes.list()
+
+        try:
+            node: Node = client.nodes.get(worker.hostname)
+        except APIError:
+            return ManagerAnswer(code=ReturnCodes.DOCKER_ERROR)
+
+        if worker.local_nfs_root is not None:
+            # The correct flow is to call this endpoint AFTER joining the swarm via Docker, so we can assume the worker
+            # is already present in the nodes list
+            specs = node.attrs["Spec"]
+            specs["Labels"][_LABEL_NFS_SERVER] = worker.local_nfs_root
+            node.update(node_spec=specs)
+
+            _update_nfs_nodes(workers=[node])
         return ManagerAnswer(code=ReturnCodes.WORKER_INFO, data={"info": worker.__data__})
     except DBError as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"message": e.message})
@@ -125,6 +154,8 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
     pylogger.info(f"Registering: {user_id}")
     try:
         User.register(user_id=user_id, permission_level=PermissionLevel.USER)
+        nfs_workers: Sequence[Node] = client.nodes.list(filters={"label": _LABEL_NFS_SERVER})
+        _update_nfs_nodes(workers=nfs_workers)
         return ManagerAnswer(code=ReturnCodes.REGISTRATION_SUCCESSFUL, data={"user_id": user_id})
     except Exception as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"args": e.args})
