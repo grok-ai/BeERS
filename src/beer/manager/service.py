@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 import orjson
 from docker.errors import APIError, NotFound
@@ -50,26 +50,48 @@ client = docker.from_env()
 
 
 def _update_nfs_nodes(workers: Sequence[Node]):
+    if len(workers) == 0:
+        return
+
     users: Sequence[User] = User.having_permission(permission_level=PermissionLevel.USER.value)
+    if len(users) == 0:
+        return
 
-    for worker in workers:
-        labels = worker.attrs["Spec"]["Labels"]
-        assert _LABEL_NFS_SERVER in labels
-
-        client.services.create(
-            image="alpine:latest",
-            name="update_nfs_nodes",
-            # tty=True,
-            command=["mkdir", "-p", *(f"/data/{user}" for user in users)],
-            constraints=[f"node.hostname=={worker.attrs['Description']['Hostname']}"],
-            mounts=[
-                Mount(
-                    target="/data",
-                    source=labels[_LABEL_NFS_SERVER],
-                    type="bind",
-                )
-            ],
+    hostname2nfs_root2address: Sequence[Tuple[str, str, str]] = [
+        (
+            worker.attrs["Description"]["Hostname"],
+            worker.attrs["Spec"]["Labels"][_LABEL_NFS_SERVER],
+            worker.attrs["Status"]["Addr"],
         )
+        for worker in workers
+    ]
+
+    client.containers.run(
+        image="alpine:latest",
+        tty=True,
+        command=[
+            "mkdir",
+            "-p",
+            *(f"/data/{hostname}/{user}" for hostname, _, _ in hostname2nfs_root2address for user in users),
+        ],
+        mounts=[
+            Mount(
+                target=f"/data/{hostname}",
+                source=f"nfs_volume_{hostname}",
+                type="volume",
+                driver_config=DriverConfig(
+                    name="local",
+                    options={
+                        "type": "nfs4",
+                        "device": f":{nfs_root}",
+                        "o": f"addr={address},nfsvers=4,nolock,soft,rw",
+                    },
+                ),
+            )
+            for hostname, nfs_root, address in hostname2nfs_root2address
+        ],
+        remove=True,
+    )
 
 
 @app.post("/ready")
@@ -264,6 +286,7 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         ]
         # args=["-d"],
     )
+    service.tasks()
     service.reload()
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})

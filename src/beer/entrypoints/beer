@@ -8,7 +8,6 @@ from typing import Mapping, Optional
 
 import requests
 import typer
-from docker.errors import APIError
 from requests import ConnectTimeout, Response
 
 import beer  # noqa
@@ -114,6 +113,9 @@ def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: b
 
 def run_event_listener():
     import docker
+    from docker.models.nodes import Node
+
+    logger = logging.getLogger("SwarmEventListener")
 
     client = docker.from_env()
     events = client.events(
@@ -121,7 +123,20 @@ def run_event_listener():
         filters={"scope": "swarm", "type": "node"},
     )
     for event in events:
-        pylogger.debug(f"[EVENT]: {event}")
+        # {'Type': 'node', 'Action': 'update',
+        #  'Actor': {'ID': 'pou5nqcitq0y0x1wmhrrwdn8q', 'Attributes': {'name': __main__: 124
+        # 'cm-shannon', 'state.new': 'down', 'state.old': 'ready'}}, 'scope': 'swarm', 'time': 1650372820, 'timeNano':
+        # 1650372820734862390}
+        logger.debug(f"[Swarm Event]: {event}")
+
+        try:
+            actor: dict = event["Actor"]
+            attrs: dict = actor["Attributes"]
+            if attrs.get("state.new") == "down":
+                node: Node = client.nodes.get(node_id=actor["ID"])
+                node.remove(force=True)
+        except Exception as e:
+            logger.error(f"Error with events: {e}")
     events.close()  # TODO: where/when?
 
 
@@ -204,6 +219,7 @@ def _init_worker(
     protocol: str = typer.Argument("http"),
 ):
     import docker
+    from docker.errors import APIError
 
     manager_url: str = f"{manager_ip}:{manager_swarm_port}"
     client = docker.from_env()
