@@ -2,12 +2,12 @@
 
 import logging
 import os
+from multiprocessing import Process
 from pathlib import Path
 from typing import Mapping, Optional
 
 import requests
 import typer
-from docker.errors import APIError
 from requests import ConnectTimeout, Response
 
 import beer  # noqa
@@ -111,6 +111,35 @@ def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: b
     assert swarmprom_out == 0, swarmprom_out
 
 
+def run_event_listener():
+    import docker
+    from docker.models.nodes import Node
+
+    logger = logging.getLogger("SwarmEventListener")
+
+    client = docker.from_env()
+    events = client.events(
+        decode=True,
+        filters={"scope": "swarm", "type": "node"},
+    )
+    for event in events:
+        # {'Type': 'node', 'Action': 'update',
+        #  'Actor': {'ID': 'pou5nqcitq0y0x1wmhrrwdn8q', 'Attributes': {'name': __main__: 124
+        # 'cm-shannon', 'state.new': 'down', 'state.old': 'ready'}}, 'scope': 'swarm', 'time': 1650372820, 'timeNano':
+        # 1650372820734862390}
+        logger.debug(f"[Swarm Event]: {event}")
+
+        try:
+            actor: dict = event["Actor"]
+            attrs: dict = actor["Attributes"]
+            if attrs.get("state.new") == "down":
+                node: Node = client.nodes.get(node_id=actor["ID"])
+                node.remove(force=True)
+        except Exception as e:
+            logger.error(f"Error with events: {e}")
+    events.close()  # TODO: where/when?
+
+
 @service_app.command("manager")
 def _init_manager(
     ip: str = typer.Option(..., prompt=True, envvar="MANAGER_IP"),
@@ -150,6 +179,7 @@ def _init_manager(
         # snapshot_interval=5000,
         # log_entries_for_slow_followers=1200,
     )
+    Process(target=run_event_listener).start()
 
     worker_token: str = client.swarm.attrs["JoinTokens"]["Worker"]
     pylogger.info(f"WORKER_TOKEN: <{worker_token}>")
@@ -184,10 +214,12 @@ def _init_worker(
     manager_ip: str = typer.Option(..., prompt=True),
     manager_swarm_port: int = typer.Option(..., prompt=True),
     manager_rest_port: int = typer.Option(..., prompt=True),
+    local_nfs_root: str = typer.Option(None, prompt=True),
     token: str = typer.Option(..., prompt=True),
     protocol: str = typer.Argument("http"),
 ):
     import docker
+    from docker.errors import APIError
 
     manager_url: str = f"{manager_ip}:{manager_swarm_port}"
     client = docker.from_env()
@@ -201,7 +233,8 @@ def _init_worker(
 
     join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
     if join_result:
-        worker_model: WorkerModel = build_worker_specs()
+        worker_model: WorkerModel = build_worker_specs(local_nfs_root=local_nfs_root)
+        # TODO: let users confirm gathered specs?
 
         manager_url: str = f"{protocol}://{manager_ip}:{manager_rest_port}"
 

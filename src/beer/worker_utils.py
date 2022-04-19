@@ -1,9 +1,9 @@
 import logging
-import os
 import platform
 import re
 import socket
 import uuid
+from typing import Optional
 
 import psutil
 
@@ -12,10 +12,8 @@ from beer.models import WorkerModel
 
 pylogger = logging.getLogger(__name__)
 
-_VOLUMES_ROOT_DIR: str = os.environ["VOLUMES_ROOT_DIR"]
 
-
-def build_worker_specs() -> WorkerModel:
+def build_worker_specs(local_nfs_root: Optional[str]) -> WorkerModel:
 
     # https://stackoverflow.com/a/58420504
     try:
@@ -31,15 +29,17 @@ def build_worker_specs() -> WorkerModel:
             "machine": platform.machine(),
         }
 
-        disk = psutil.disk_usage(_VOLUMES_ROOT_DIR)
         unit_measure = 1024.0**3
 
-        disk = dict(
-            total=disk.total / unit_measure,
-            used=disk.used / unit_measure,
-            free=disk.free / unit_measure,
-            usage_percent=disk.percent,
-        )
+        if local_nfs_root is not None:
+            disk = psutil.disk_usage(local_nfs_root)
+
+            disk = dict(
+                total=disk.total / unit_measure,
+                used=disk.used / unit_measure,
+                free=disk.free / unit_measure,
+                usage_percent=disk.percent,
+            )
 
         ram = psutil.virtual_memory()
         ram = dict(
@@ -52,7 +52,7 @@ def build_worker_specs() -> WorkerModel:
         return WorkerModel(
             hostname=platform.uname().node,
             info=info,
-            volumes_root=_VOLUMES_ROOT_DIR,
+            local_nfs_root=local_nfs_root,
             # ram=ram,
             # disk=disk,
             gpus=nvidia.get_gpus(),

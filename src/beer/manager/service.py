@@ -1,14 +1,14 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, List, Mapping, Optional, Sequence
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 import orjson
 from docker.errors import APIError, NotFound
 from docker.models.configs import Config
 from docker.models.nodes import Node
 from docker.models.services import Service
-from docker.types import ConfigReference, EndpointSpec, Mount
+from docker.types import ConfigReference, DriverConfig, EndpointSpec, Mount
 from fastapi import Body, FastAPI
 from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
@@ -32,6 +32,7 @@ _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
 _LABEL_USER_ID: str = "beer.user_id"
 _LABEL_EXPIRE: str = "beer.expire"
+_LABEL_NFS_SERVER: str = "beer.nfs_server"
 
 _CONFIG_PREFIX: str = "beer_ssh-key_"
 
@@ -48,6 +49,51 @@ app = FastAPI(default_response_class=ORJSONResponse, debug=True)
 client = docker.from_env()
 
 
+def _update_nfs_nodes(workers: Sequence[Node]):
+    if len(workers) == 0:
+        return
+
+    users: Sequence[User] = User.having_permission(permission_level=PermissionLevel.USER.value)
+    if len(users) == 0:
+        return
+
+    hostname2nfs_root2address: Sequence[Tuple[str, str, str]] = [
+        (
+            worker.attrs["Description"]["Hostname"],
+            worker.attrs["Spec"]["Labels"][_LABEL_NFS_SERVER],
+            worker.attrs["Status"]["Addr"],
+        )
+        for worker in workers
+    ]
+
+    client.containers.run(
+        image="alpine:latest",
+        tty=True,
+        command=[
+            "mkdir",
+            "-p",
+            *(f"/data/{hostname}/{user}" for hostname, _, _ in hostname2nfs_root2address for user in users),
+        ],
+        mounts=[
+            Mount(
+                target=f"/data/{hostname}",
+                source=f"nfs_volume_{hostname}",
+                type="volume",
+                driver_config=DriverConfig(
+                    name="local",
+                    options={
+                        "type": "nfs4",
+                        "device": f":{nfs_root}",
+                        "o": f"addr={address},nfsvers=4,nolock,soft,rw",
+                    },
+                ),
+            )
+            for hostname, nfs_root, address in hostname2nfs_root2address
+        ],
+        remove=True,
+    )
+
+
 @app.post("/ready")
 def is_ready():
     return ManagerAnswer(code=ReturnCodes.READY)
@@ -57,7 +103,22 @@ def is_ready():
 def add_worker(worker_model: WorkerModel, request: Request):
     worker_model.external_ip = request.client.host
     try:
+        # DB registration
         worker = Worker.register(worker_model=worker_model)
+
+        try:
+            node: Node = client.nodes.get(worker.hostname)
+        except APIError:
+            return ManagerAnswer(code=ReturnCodes.DOCKER_ERROR)
+
+        if worker.local_nfs_root is not None:
+            # The correct flow is to call this endpoint AFTER joining the swarm via Docker, so we can assume the worker
+            # is already present in the nodes list
+            specs = node.attrs["Spec"]
+            specs["Labels"][_LABEL_NFS_SERVER] = worker.local_nfs_root
+            node.update(node_spec=specs)
+
+            _update_nfs_nodes(workers=[node])
         return ManagerAnswer(code=ReturnCodes.WORKER_INFO, data={"info": worker.__data__})
     except DBError as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"message": e.message})
@@ -69,7 +130,7 @@ def permission_check(request_user: RequestUser, required_level: PermissionLevel)
     if required_level == PermissionLevel.USER and not User.is_registered(user_id=request_user.user_id):
         pylogger.debug(f"<permission_check> User {request_user} not registered")
 
-        admins = User.get_admins()
+        admins = User.having_permission(permission_level=PermissionLevel.ADMIN.value)
         admins = [f"- @{admin.username}" for admin in admins if admin.username is not None]
         admins = "\n".join(admins)
         return ManagerAnswer(code=ReturnCodes.NOT_REGISTERED_ERROR, data={"admins": admins})
@@ -115,6 +176,8 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
     pylogger.info(f"Registering: {user_id}")
     try:
         User.register(user_id=user_id, permission_level=PermissionLevel.USER)
+        nfs_workers: Sequence[Node] = client.nodes.list(filters={"label": _LABEL_NFS_SERVER})
+        _update_nfs_nodes(workers=nfs_workers)
         return ManagerAnswer(code=ReturnCodes.REGISTRATION_SUCCESSFUL, data={"user_id": user_id})
     except Exception as e:
         return ManagerAnswer(code=ReturnCodes.DB_ERROR, data={"args": e.args})
@@ -206,9 +269,24 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
                 filename="/root/.ssh/authorized_keys",
             )
         ],
-        mounts=[Mount(target=job.volume_mount, source=user.id, type="volume")]
+        mounts=[
+            Mount(
+                target=job.volume_mount,
+                source=user.id,
+                type="volume",
+                driver_config=DriverConfig(
+                    name="local",
+                    options={
+                        "type": "nfs4",
+                        "device": f":{worker.local_nfs_root}/{user.id}",
+                        "o": f"addr={worker.ip},nfsvers=4,nolock,soft,rw",
+                    },
+                ),
+            )
+        ]
         # args=["-d"],
     )
+    service.tasks()
     service.reload()
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})

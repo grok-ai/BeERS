@@ -29,6 +29,7 @@ class ReturnCodes(StrEnum):
     KEY_MISSING_ERROR = auto()
     RUNTIME_ERROR = auto()
     KEY_IN_USE_ERROR = auto()
+    DOCKER_ERROR = auto()
 
     WORKER_INFO = auto()
     REGISTRATION_SUCCESSFUL = auto()
