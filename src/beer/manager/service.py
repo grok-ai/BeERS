@@ -1,7 +1,7 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Set, Tuple
 
 import orjson
 from docker.errors import APIError, NotFound
@@ -30,8 +30,10 @@ _DATA_CODE_KEY: str = "data"
 
 _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
-_LABEL_USER_ID: str = "beer.user_id"
-_LABEL_EXPIRE: str = "beer.expire"
+_SERVICE_LABEL_USER_ID: str = "beer.user_id"
+_SERVICE_LABEL_EXPIRE: str = "beer.expire"
+_SERVICE_LABEL_GPUS: str = "beer.gpus"
+
 _LABEL_NFS_SERVER: str = "beer.nfs_server"
 
 _CONFIG_PREFIX: str = "beer_ssh-key_"
@@ -283,7 +285,11 @@ def job_add(request_user: RequestUser, job: JobRequestModel = Body(None)):
         image=job.image,
         name=job_name,
         tty=True,
-        labels={_LABEL_USER_ID: job.user_id, _LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S")},
+        labels={
+            _SERVICE_LABEL_USER_ID: job.user_id,
+            _SERVICE_LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S"),
+            _SERVICE_LABEL_GPUS: [gpu["uuid"] for gpu in job.gpus],
+        },
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
         # resources=Resources(**job.resources.dict()),
@@ -341,8 +347,8 @@ def job_list(request_user: RequestUser):
 
     services: Sequence[Service] = [
         service
-        for service in client.services.list(filters={"label": _LABEL_USER_ID})
-        if service.attrs["Spec"]["Labels"][_LABEL_USER_ID] == user.id
+        for service in client.services.list(filters={"label": _SERVICE_LABEL_USER_ID})
+        if service.attrs["Spec"]["Labels"][_SERVICE_LABEL_USER_ID] == user.id
     ]
 
     return ManagerAnswer(code=ReturnCodes.JOB_LIST, data={"services": [service.attrs for service in services]})
@@ -364,7 +370,13 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
         if node.attrs["Status"]["State"] == "ready" and node.attrs["Spec"]["Availability"] == "active":
             online_workers.append(node.attrs["Description"]["Hostname"])
 
+    all_services: Sequence[Service] = client.services.list({"label": _SERVICE_LABEL_GPUS})
+    busy_gpus: Set[str] = {
+        gpu for service in all_services for gpu in service.attrs["Spec"]["Labels"][_SERVICE_LABEL_GPUS]
+    }
+
     resources: Mapping[Worker, Sequence[GPU]] = GPU.by_workers(worker_ids=online_workers)
+    resources = {worker: [gpu for gpu in gpus if gpu.uuid not in busy_gpus] for worker, gpus in resources.items()}
 
     return ManagerAnswer(
         code=ReturnCodes.RESOURCES,
