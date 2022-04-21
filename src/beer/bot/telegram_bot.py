@@ -1,4 +1,7 @@
 import logging
+import math
+import time
+from datetime import datetime
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, MessageEntity, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Filters, Updater
@@ -124,7 +127,32 @@ class BeerBot:
         request_user: User = update.effective_user
 
         user_jobs = self.manager_service.job_list(request_user=request_user)
-        print(user_jobs)
+
+        now: float = time.time()
+        now: datetime = datetime.fromtimestamp(now)
+
+        message: str = "These are the running jobs associated with your account:\n"
+        for service in user_jobs.data["services"]:
+            job = service["job"]
+            hostname: str = job["worker_hostname"]
+            gpu: str = job["gpu"]["name"]
+            port: str = service["docker_tasks"][0]["Status"]["PortStatus"]["Ports"][0]["PublishedPort"]
+            ip: str = job["gpu"]["worker"]["ip"]
+
+            expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
+            remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
+            print(expected_end)
+            message += f"""
+-   Worker:  <b>{hostname}</b>
+    GPU(s): <b>{gpu}</b>
+    Remaining Hours: <b>{remaining_hours}</b>h
+    Access with: <code>ssh root@{ip} -p {port}</code>\n\n"""
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode="HTML",
+        )
 
     def run(self):
         dispatcher = self.updater.dispatcher
