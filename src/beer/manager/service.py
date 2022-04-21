@@ -352,7 +352,10 @@ def job_list(request_user: RequestUser):
         if service.attrs["Spec"]["Labels"][_SERVICE_LABEL_USER_ID] == user.id
     ]
 
-    return ManagerAnswer(code=ReturnCodes.JOB_LIST, data={"services": [service.attrs for service in services]})
+    return ManagerAnswer(
+        code=ReturnCodes.JOB_LIST,
+        data={"services": [{"attrs": service.attrs, "tasks": service.tasks()} for service in services]},
+    )
 
 
 @app.post("/list_resources", response_model=ManagerAnswer)
