@@ -354,7 +354,15 @@ def job_list(request_user: RequestUser):
 
     return ManagerAnswer(
         code=ReturnCodes.JOB_LIST,
-        data={"services": [{"attrs": service.attrs, "tasks": service.tasks()} for service in services]},
+        data={
+            "services": [
+                {
+                    "docker_tasks": service.tasks(),
+                    "job": model_to_dict(Job.get_by_id(service.id)),
+                }
+                for service in services
+            ]
+        },
     )
 
 
