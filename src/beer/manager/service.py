@@ -19,7 +19,7 @@ import docker
 import beer  # noqa
 from beer.manager import beer_db
 from beer.manager.api import ManagerAnswer, PermissionLevel, ReturnCodes
-from beer.manager.beer_db import GPU, DBError, User, Worker
+from beer.manager.beer_db import GPU, DBError, Job, User, Worker
 from beer.models import JobRequestModel, RequestUser, WorkerModel
 from beer.utils import run_service
 
@@ -253,9 +253,10 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
     except NotFound:
         return ManagerAnswer(code=ReturnCodes.KEY_MISSING_ERROR)
 
+    job_name: str = f"{job.user_id}_{now.strftime('%m%d%Y%H%M%S')}"
     service: Service = client.services.create(
         image=job.image,
-        name=f"{job.user_id}_{now.strftime('%m%d%Y%H%M%S')}",
+        name=job_name,
         tty=True,
         labels={_LABEL_USER_ID: job.user_id, _LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S")},
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
@@ -287,8 +288,19 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         ]
         # args=["-d"],
     )
-    service.tasks()
     service.reload()
+
+    Job.create(
+        name=job_name,
+        user=job.user_id,
+        image=job.image,
+        service=service.id,
+        worker_hostname=job.worker_hostname,
+        worker_info=worker.info,
+        start_time=now,
+        expected_end_time=expire,
+        gpu=job.gpus[0],  # TODO: add multi-gpu support on the DB side
+    )
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
 

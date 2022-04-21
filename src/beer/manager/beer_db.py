@@ -116,33 +116,14 @@ class Worker(Model):
         return list(Worker.select().where(Worker.hostname << worker_ids))
 
 
-class Job(Model):
-    name = CharField()
-    user = ForeignKeyField(User)
-    image = CharField()
-    container = FixedCharField(max_length=64, primary_key=True)
-    worker_hostname = CharField()
-    worker_info = JSONField(default=None, null=True)
-    start_time = DateTimeField()
-    expected_end_time = DateTimeField()
-    end_time = DateTimeField(null=True, default=None)
-
-    ram = IntegerField(null=True, default=None)
-    disk = IntegerField(null=True, default=None)
-
-    class Meta:
-        database = _db
-
-
 class GPU(Model):
     worker = ForeignKeyField(model=Worker)
-    uuid = CharField()
+    uuid = CharField(unique=True)
     name = CharField()
     index = IntegerField()
     total_memory = IntegerField()
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
     owner = ForeignKeyField(model=User, null=True, default=None)
-    current_job = ForeignKeyField(model=Job, null=True, default=None)
 
     class Meta:
         database = _db
@@ -170,6 +151,25 @@ class GPU(Model):
         worker_ids = list(worker_ids)
         gpus = list(cls.select().where(GPU.worker << worker_ids))
         return {worker: list(items) for worker, items in itertools.groupby(gpus, key=operator.attrgetter("worker"))}
+
+
+class Job(Model):
+    name = CharField()
+    user = ForeignKeyField(User)
+    image = CharField()
+    service = FixedCharField(max_length=64, primary_key=True)
+    worker_hostname = CharField()
+    worker_info = JSONField(default=None, null=True)
+    start_time = DateTimeField()
+    expected_end_time = DateTimeField()
+    end_time = DateTimeField(null=True, default=None)
+    gpu = ForeignKeyField(model=GPU)  # TODO: add multi-gpu support, creating a new JobGPU table to keep the history
+
+    ram = IntegerField(null=True, default=None)
+    disk = IntegerField(null=True, default=None)
+
+    class Meta:
+        database = _db
 
 
 def init(owner_id: str):
