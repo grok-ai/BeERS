@@ -331,7 +331,7 @@ def job_add(request_user: RequestUser, job: JobRequestModel = Body(None)):
         worker_info=worker.info,
         start_time=now,
         expected_end_time=expire,
-        gpu=job.gpus[0],  # TODO: add multi-gpu support on the DB side
+        gpu=job.gpus[0]["uuid"],  # TODO: add multi-gpu support on the DB side
     )
 
     return ManagerAnswer(code=ReturnCodes.DISPATCH_OK, data={"service.attrs": service.attrs})
