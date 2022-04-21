@@ -142,6 +142,7 @@ class JobDefinition:
             for worker in context.user_data["resources"]["workers"].values()
             if worker.get("local_nfs_root") is not None
         ]
+        nfs_servers.append(InlineKeyboardButton(text="None", callback_data=f"{_CB_MOUNT_SOURCE}None"))
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -162,6 +163,7 @@ class JobDefinition:
             for worker in context.user_data["resources"]["workers"].values()
             if worker.get("local_nfs_root") is not None
         ]
+        nfs_servers.append(InlineKeyboardButton(text="None", callback_data=f"{_CB_MOUNT_SOURCE}None"))
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -181,31 +183,45 @@ class JobDefinition:
 
         try:
             worker_name: str = query.data[len(_CB_MOUNT_SOURCE) :]
-            mount = context.user_data["job"]["mounts"][0]
-            worker = context.user_data["resources"]["workers"][worker_name]
-            mount["source_ip"] = worker["ip"]
-            mount["source_root"] = worker["local_nfs_root"]
+            if worker_name != "None":
+                mount = context.user_data["job"]["mounts"][0]
+                worker = context.user_data["resources"]["workers"][worker_name]
+                mount["source_ip"] = worker["ip"]
+                mount["source_root"] = worker["local_nfs_root"]
+            else:
+                context.user_data["job"]["mounts"] = []
         except Exception:
             query.answer("Something went wrong. Please try again.")
             return JobStates.MOUNT_SOURCE
 
         query.answer(f"NFS mount source selected: {worker_name}")
 
-        target_mounts = [
-            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT_TARGET}{i}")
-            for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
-        ]
+        if worker_name != "None":
+            target_mounts = [
+                InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT_TARGET}{i}")
+                for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
+            ]
 
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Please now type the mount location for the user-specific volume (persistent data).\n"
-            "The path has to be absolute as the default one.\n"
-            "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[target_mounts]),
-        )
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Please now type the mount location for the user-specific volume (persistent data).\n"
+                "The path has to be absolute as the default one.\n"
+                "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[target_mounts]),
+            )
 
-        return JobStates.MOUNT_TARGET
+            return JobStates.MOUNT_TARGET
+        else:
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Please now type the expected duration of this job.\n\n"
+                "<b>It won't be automatically deleted </b>when it expires, don't worry."
+                " You'll just get notified and asked to adjust the <u>expected</u> duration.",
+                parse_mode="HTML",
+            )
+
+            return JobStates.DURATION
 
     def mount_target_cb(self, update: Update, context: CallbackContext):
         pylogger.error(context.user_data)
