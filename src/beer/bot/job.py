@@ -2,7 +2,7 @@ import json
 import logging
 import os.path
 from enum import auto
-from typing import List
+from typing import Sequence
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
@@ -19,17 +19,19 @@ class JobStates(StrEnum):
     WORKER = auto()
     GPU = auto()
     IMAGE = auto()
-    MOUNT = auto()
+    MOUNT_SOURCE = auto()
+    MOUNT_TARGET = auto()
     DURATION = auto()
     CONFIRM = auto()
 
 
-_PREDEFINED_IMAGES: List[str] = ["grokai/beer_job:0.0.1"]
-_PREDEFINED_MOUNTS: List[str] = ["/home/beer/data"]
+_PREDEFINED_IMAGES: Sequence[str] = ["grokai/beer_job:0.0.1"]
+_PREDEFINED_MOUNTS: Sequence[str] = ["/home/beer/data"]
 
 _CB_IMAGE_PREFIX: str = "cb_image_"
 _CB_FINAL: str = "cb_final_"
-_CB_MOUNT: str = "cb_mount_"
+_CB_MOUNT_SOURCE: str = "cb_mount_source_"
+_CB_MOUNT_TARGET: str = "cb_mount_target_"
 
 
 class JobDefinition:
@@ -135,28 +137,62 @@ class JobDefinition:
 
         query.answer(f"Image selected: {image}")
 
-        mounts = [
-            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT}{i}")
-            for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
+        nfs_servers = [
+            InlineKeyboardButton(text=worker["hostname"], callback_data=f"{_CB_MOUNT_SOURCE}{worker['hostname']}")
+            for worker in context.user_data["resources"]["workers"].values()
+            if worker.get("local_nfs_root") is not None
         ]
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Please now type the mount location for the user-specific volume (persistent data).\n"
-            "The path has to be absolute as the default one.\n"
-            "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
+            text="Please now select the NFS server to mount your data <b>from</b>.",
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[mounts]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[nfs_servers]),
         )
 
-        return JobStates.MOUNT
+        context.user_data["job"]["mounts"] = []
+        return JobStates.MOUNT_SOURCE
 
     def image(self, update: Update, context: CallbackContext):
         # TODO: image validation/availability check
         context.user_data["job"]["image"] = update.message.text.strip()
 
-        mounts = [
-            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT}{i}")
+        nfs_servers = [
+            InlineKeyboardButton(text=worker["hostname"], callback_data=f"{_CB_MOUNT_SOURCE}{worker['hostname']}")
+            for worker in context.user_data["resources"]["workers"].values()
+            if worker.get("local_nfs_root") is not None
+        ]
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Please now select the NFS server to mount your data <b>from</b>.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[nfs_servers]),
+        )
+
+        context.user_data["job"]["mounts"] = []
+        return JobStates.MOUNT_SOURCE
+
+    def mount_source_cb(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        if not query.data.startswith(_CB_MOUNT_SOURCE):
+            query.answer("Something went wrong. Please try again.")
+            return JobStates.MOUNT_SOURCE
+
+        try:
+            worker_name: str = query.data[len(_CB_MOUNT_SOURCE) :]
+            mount = context.user_data["job"]["mounts"][0]
+            worker = context.user_data["resources"]["workers"][worker_name]
+            mount["source_ip"] = worker["ip"]
+            mount["source_root"] = worker["local_nfs_root"]
+        except Exception:
+            query.answer("Something went wrong. Please try again.")
+            return JobStates.MOUNT_SOURCE
+
+        query.answer(f"NFS mount source selected: {worker_name}")
+
+        target_mounts = [
+            InlineKeyboardButton(text=mount_path, callback_data=f"{_CB_MOUNT_TARGET}{i}")
             for i, mount_path in enumerate(_PREDEFINED_MOUNTS)
         ]
 
@@ -166,25 +202,27 @@ class JobDefinition:
             "The path has to be absolute as the default one.\n"
             "Please keep in mind that <b>only the data in the volume</b> will be saved across jobs.",
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[mounts]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[target_mounts]),
         )
 
-        return JobStates.MOUNT
+        return JobStates.MOUNT_TARGET
 
-    def mount_cb(self, update: Update, context: CallbackContext):
+    def mount_target_cb(self, update: Update, context: CallbackContext):
+        pylogger.error(context.user_data)
+
         query = update.callback_query
-        if not query.data.startswith(_CB_MOUNT):
-            query.answer("Something went wrong. Type the image name instead of using buttons.")
-            return JobStates.MOUNT
+        if not query.data.startswith(_CB_MOUNT_TARGET):
+            query.answer("Something went wrong. Please try again or restart the procedure.")
+            return JobStates.MOUNT_TARGET
 
         try:
-            mount_index = int(query.data[len(_CB_MOUNT) :])
-            # TODO: image validation/availability check
+            pylogger.info(context.user_data)
+            mount_index = int(query.data[len(_CB_MOUNT_TARGET) :])
             mount: str = _PREDEFINED_MOUNTS[mount_index]
-            context.user_data["job"]["mount"] = mount
+            context.user_data["job"]["mounts"][0]["target"] = mount
         except Exception:
             query.answer("Something went wrong. Type the mount path instead of using buttons.")
-            return JobStates.MOUNT
+            return JobStates.MOUNT_TARGET
 
         query.answer(f"Mount selected: {mount}")
 
@@ -198,7 +236,7 @@ class JobDefinition:
 
         return JobStates.DURATION
 
-    def mount(self, update: Update, context: CallbackContext):
+    def mount_target(self, update: Update, context: CallbackContext):
         mount_path: str = update.message.text.strip()
 
         if not os.path.isabs(mount_path):
@@ -208,9 +246,9 @@ class JobDefinition:
                 "Keeping in mind that the default home is <code>/home/beer</code>",
                 parse_mode="HTML",
             )
-            return JobStates.MOUNT
+            return JobStates.MOUNT_TARGET
 
-        context.user_data["job"]["mount"] = mount_path
+        context.user_data["job"]["mounts"][0]["target"] = mount_path
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -272,7 +310,7 @@ class JobDefinition:
                 worker_hostname=workers.pop(),
                 gpus=job_details["gpus"],
                 expected_duration=job_details["duration"],
-                volume_mount=job_details["mount"],
+                mounts=job_details["mounts"],
             )
 
             resources_answer: ManagerAnswer = self.bot.manager_service.job(request_user=request_user, job=job)
@@ -314,9 +352,16 @@ def build_handler(bot: BeerBot, new_job_cb: str) -> ConversationHandler:
                 MessageHandler(Filters.text, job_definition.image),
                 CallbackQueryHandler(job_definition.image_cb, pass_user_data=True, pattern=f"^{_CB_IMAGE_PREFIX}"),
             ],
-            JobStates.MOUNT: [
-                CallbackQueryHandler(job_definition.mount_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT}"),
-                MessageHandler(Filters.text, job_definition.mount),
+            JobStates.MOUNT_SOURCE: [
+                CallbackQueryHandler(
+                    job_definition.mount_source_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_SOURCE}"
+                ),
+            ],
+            JobStates.MOUNT_TARGET: [
+                CallbackQueryHandler(
+                    job_definition.mount_target_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_TARGET}"
+                ),
+                MessageHandler(Filters.text, job_definition.mount_target),
             ],
             JobStates.DURATION: [MessageHandler(Filters.regex("^\\d+$"), job_definition.duration)],
             JobStates.CONFIRM: [

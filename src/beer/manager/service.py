@@ -271,18 +271,19 @@ def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
         ],
         mounts=[
             Mount(
-                target=job.volume_mount,
+                target=mount["target"],
                 source=user.id,
                 type="volume",
                 driver_config=DriverConfig(
                     name="local",
                     options={
                         "type": "nfs4",
-                        "device": f":{worker.local_nfs_root}/{user.id}",
-                        "o": f"addr={worker.ip},nfsvers=4,nolock,soft,rw",
+                        "device": f":{mount['source_root']}/{user.id}",
+                        "o": f"addr={mount['source_ip']},nfsvers=4,nolock,soft,rw",
                     },
                 ),
             )
+            for mount in job.mounts
         ]
         # args=["-d"],
     )
