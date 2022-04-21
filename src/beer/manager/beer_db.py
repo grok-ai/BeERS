@@ -80,7 +80,7 @@ class User(Model):
 class Worker(Model):
     hostname = CharField(primary_key=True, max_length=42)
     ip = IPField()
-    local_nfs_root = CharField()
+    local_nfs_root = CharField(default=None, null=True)
     info = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
 
     class Meta:
