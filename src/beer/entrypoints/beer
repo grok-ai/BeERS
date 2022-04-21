@@ -214,7 +214,7 @@ def _init_worker(
     manager_ip: str = typer.Option(..., prompt=True),
     manager_swarm_port: int = typer.Option(..., prompt=True),
     manager_rest_port: int = typer.Option(..., prompt=True),
-    local_nfs_root: str = typer.Option(None, prompt=True),
+    local_nfs_root: str = typer.Option(default=None, prompt=False),
     token: str = typer.Option(..., prompt=True),
     protocol: str = typer.Argument("http"),
 ):

@@ -150,7 +150,7 @@ class JobDefinition:
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[nfs_servers]),
         )
 
-        context.user_data["job"]["mounts"] = []
+        context.user_data["job"]["mounts"] = [{}]
         return JobStates.MOUNT_SOURCE
 
     def image(self, update: Update, context: CallbackContext):
@@ -170,7 +170,7 @@ class JobDefinition:
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[nfs_servers]),
         )
 
-        context.user_data["job"]["mounts"] = []
+        context.user_data["job"]["mounts"] = [{}]
         return JobStates.MOUNT_SOURCE
 
     def mount_source_cb(self, update: Update, context: CallbackContext):
