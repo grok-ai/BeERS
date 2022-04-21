@@ -232,8 +232,33 @@ def check_ssh_key(request_user: RequestUser):
     return ManagerAnswer(code=ReturnCodes.KEY_CHECK, data={"is_set": user.public_ssh_key is not None})
 
 
+@app.post("/job_remove", response_model=ManagerAnswer)
+def job_remove(request_user: RequestUser, job_id: str = Body(None)):
+    if (
+        permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
+    ) is not None:
+        return permission_error
+
+    user: User = User.get_by_id(request_user.user_id)
+    job: Job = Job.get_by_id(job_id)
+
+    if job.user.id == user.id or user.permission_level <= PermissionLevel.ADMIN.value:
+        now: float = time.time()
+        now: datetime = datetime.fromtimestamp(now)
+
+        client.services.get(service_id=job.service).remove()
+        job.end_time = now
+        job.save(only=[Job.end_time])
+
+        return ManagerAnswer(code=ReturnCodes.JOB_REMOVE_OK)
+    else:
+        return ManagerAnswer(
+            code=ReturnCodes.PERMISSION_ERROR,
+        )
+
+
 @app.post("/job", response_model=ManagerAnswer)
-def dispatch(request_user: RequestUser, job: JobRequestModel = Body(None)):
+def job_add(request_user: RequestUser, job: JobRequestModel = Body(None)):
     if (
         permission_error := permission_check(request_user=request_user, required_level=PermissionLevel.USER)
     ) is not None:

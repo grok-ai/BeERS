@@ -40,6 +40,7 @@ class ReturnCodes(StrEnum):
     READY = auto()
     KEY_CHECK = auto()
     JOB_LIST = auto()
+    JOB_REMOVE_OK = auto()
 
     @property
     def is_error(self):
