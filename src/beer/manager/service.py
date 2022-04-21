@@ -33,6 +33,7 @@ _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 _SERVICE_LABEL_USER_ID: str = "beer.user_id"
 _SERVICE_LABEL_EXPIRE: str = "beer.expire"
 _SERVICE_LABEL_GPUS: str = "beer.gpus"
+_SERVICE_LABEL_GPU_SEP: str = "#"
 
 _LABEL_NFS_SERVER: str = "beer.nfs_server"
 
@@ -288,7 +289,7 @@ def job_add(request_user: RequestUser, job: JobRequestModel = Body(None)):
         labels={
             _SERVICE_LABEL_USER_ID: job.user_id,
             _SERVICE_LABEL_EXPIRE: expire.strftime("%m%d%Y%H%M%S"),
-            _SERVICE_LABEL_GPUS: [gpu["uuid"] for gpu in job.gpus],
+            _SERVICE_LABEL_GPUS: _SERVICE_LABEL_GPU_SEP.join(gpu["uuid"] for gpu in job.gpus),
         },
         endpoint_spec=EndpointSpec(ports={None: (22, None, "host")}),
         constraints=[f"node.hostname=={worker.hostname}"],
@@ -370,9 +371,11 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
         if node.attrs["Status"]["State"] == "ready" and node.attrs["Spec"]["Availability"] == "active":
             online_workers.append(node.attrs["Description"]["Hostname"])
 
-    all_services: Sequence[Service] = client.services.list({"label": _SERVICE_LABEL_GPUS})
+    all_services: Sequence[Service] = client.services.list(filters={"label": _SERVICE_LABEL_GPUS})
     busy_gpus: Set[str] = {
-        gpu for service in all_services for gpu in service.attrs["Spec"]["Labels"][_SERVICE_LABEL_GPUS]
+        gpu
+        for service in all_services
+        for gpu in service.attrs["Spec"]["Labels"][_SERVICE_LABEL_GPUS].split(_SERVICE_LABEL_GPU_SEP)
     }
 
     resources: Mapping[Worker, Sequence[GPU]] = GPU.by_workers(worker_ids=online_workers)
