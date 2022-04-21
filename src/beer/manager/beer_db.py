@@ -7,7 +7,6 @@ from typing import Mapping, Sequence
 import orjson
 from peewee import (
     CharField,
-    CompositeKey,
     DateTimeField,
     FixedCharField,
     ForeignKeyField,
@@ -118,7 +117,7 @@ class Worker(Model):
 
 class GPU(Model):
     worker = ForeignKeyField(model=Worker)
-    uuid = CharField(unique=True)
+    uuid = CharField(primary_key=True)  # TODO: uuid could be not enough, if inconsistent across workers
     name = CharField()
     index = IntegerField()
     total_memory = IntegerField()
@@ -128,7 +127,6 @@ class GPU(Model):
     class Meta:
         database = _db
         indexes = [(("worker", "index"), True)]
-        primary_key = CompositeKey("worker", "uuid")  # TODO: uuid could be enough, if consistent across machines
 
     @classmethod
     def register(cls, gpu_model: NvidiaGPU, worker_id) -> "GPU":
