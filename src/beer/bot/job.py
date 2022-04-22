@@ -1,13 +1,16 @@
 import json
 import logging
+import math
 import os.path
+import time
+from datetime import datetime
 from enum import auto
 from typing import Sequence
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 
-from beer.bot.telegram_bot import BeerBot
+from beer.bot.telegram_bot import _CB_JOB_LIST, _CB_JOB_NEW, BeerBot
 from beer.manager.api import MESSAGE_TEMPLATES, ManagerAnswer, ReturnCodes
 from beer.models import JobRequestModel
 from beer.utils import StrEnum
@@ -23,6 +26,9 @@ class JobStates(StrEnum):
     MOUNT_TARGET = auto()
     DURATION = auto()
     CONFIRM = auto()
+    LIST = auto()
+    INFO = auto()
+    REMOVE = auto()
 
 
 _PREDEFINED_IMAGES: Sequence[str] = ["grokai/beer_job:0.0.1"]
@@ -34,11 +40,15 @@ _CB_MOUNT_SOURCE: str = "cb_mount_source_"
 _CB_MOUNT_TARGET: str = "cb_mount_target_"
 
 
-class JobDefinition:
+_CB_JOB_INFO: str = "cb_job_info_"
+_CB_JOB_REMOVE: str = "cb_job_rm_"
+
+
+class JobHandler:
     def __init__(self, bot: BeerBot):
         self.bot = bot
 
-    def job(self, update: Update, context: CallbackContext):
+    def job_new(self, update: Update, context: CallbackContext):
         query = update.callback_query
         query.answer()
         request_user: User = update.effective_user
@@ -344,7 +354,7 @@ class JobDefinition:
         elif cb_op == "restart":
             query.answer("Great! Let's fill out everything again!")
 
-            return self.job(update=update, context=context)
+            return self.job_new(update=update, context=context)
         else:
             query.answer("Something went wrong, very wrong :[")
             return JobStates.CONFIRM
@@ -356,34 +366,138 @@ class JobDefinition:
             parse_mode="HTML",
         )
 
+    def job_list(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        query.answer()
+        request_user: User = update.effective_user
 
-def build_handler(bot: BeerBot, new_job_cb: str) -> ConversationHandler:
-    job_definition = JobDefinition(bot=bot)
+        user_jobs = self.bot.manager_service.job_list(request_user=request_user)
+        services = user_jobs.data["services"]
+        context.user_data["jobs"] = services
+
+        now: float = time.time()
+        now: datetime = datetime.fromtimestamp(now)
+
+        message: str = "These are the running jobs associated with your account:\n"
+        for i, service in enumerate(services):
+            job = service["job"]
+            hostname: str = job["worker_hostname"]
+            gpu: str = job["gpu"]["name"]
+            status: dict = service["docker_tasks"][0]["Status"]
+            expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
+            remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
+
+            state: str = status["State"]
+            message += f"""
+    <b>{i}]</b> Worker: <b>{hostname}</b>
+        GPU(s): <b>{gpu}</b>
+        Remaining Hours: <b>~{remaining_hours}</b>
+        Job State: <b>{state}</b>
+    """
+            if state == "running":
+                port: str = status["PortStatus"]["Ports"][0]["PublishedPort"]
+                ip: str = job["gpu"]["worker"]["ip"]
+
+                message += f"    Access with: <code>ssh root@{ip} -p {port}</code>\n"
+        message += "\n\nClick on one of the following buttons to access their own info."
+
+        job_buttons = [
+            InlineKeyboardButton(text=f"Job {i}", callback_data=f"{_CB_JOB_INFO}{i}") for i, job in enumerate(services)
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([job_buttons]),
+        )
+
+        return JobStates.INFO
+
+    def job_info(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        query.answer()
+
+        try:
+            user_jobs = context.user_data["jobs"]
+
+            if not query.data.startswith(_CB_JOB_INFO):
+                query.answer("Something went wrong. Please try again.")
+                return
+
+            job_index: int = int(query.data[len(_CB_JOB_INFO) :])
+            job: dict = user_jobs[job_index]
+            job
+        except Exception:
+            query.answer("Something went wrong. Please try again.")
+            return
+
+        context.bot.editMessageText(
+            message_id=update.effective_message.message_id,
+            chat_id=update.effective_chat.id,
+            text="Job info...",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton(text="Remove Job", callback_data=f"{_CB_JOB_REMOVE}{job_index}")]]
+            ),
+        )
+        return JobStates.REMOVE
+
+    def job_rm(self, update: Update, context: CallbackContext):
+        query = update.callback_query
+        query.answer()
+
+        request_user: User = update.effective_user
+
+        try:
+            user_jobs = context.user_data["jobs"]
+
+            if not query.data.startswith(_CB_JOB_REMOVE):
+                query.answer("Something went wrong. Please try again.")
+                return
+
+            job_index: int = int(query.data[len(_CB_JOB_REMOVE) :])
+            job: dict = user_jobs[job_index]
+        except Exception:
+            query.answer("Something went wrong. Please try again.")
+            return
+
+        self.bot.manager_service.job_rm(request_user=request_user, job_id=job["job"]["service"])
+
+        return self.job_list(update=update, context=context)
+
+
+def build_handler(bot: BeerBot) -> ConversationHandler:
+    job_handler = JobHandler(bot=bot)
 
     return ConversationHandler(
-        entry_points=[CallbackQueryHandler(job_definition.job, pass_user_data=True, pattern=new_job_cb)],
+        entry_points=[
+            CallbackQueryHandler(job_handler.job_new, pass_user_data=True, pattern=f"^{_CB_JOB_NEW}"),
+            CallbackQueryHandler(job_handler.job_list, pass_user_data=True, pattern=f"^{_CB_JOB_LIST}"),
+        ],
         states={
-            JobStates.GPU: [MessageHandler(Filters.regex("^\\d+$"), job_definition.gpu)],
+            JobStates.GPU: [MessageHandler(Filters.regex("^\\d+$"), job_handler.gpu)],
             JobStates.IMAGE: [
-                MessageHandler(Filters.text, job_definition.image),
-                CallbackQueryHandler(job_definition.image_cb, pass_user_data=True, pattern=f"^{_CB_IMAGE_PREFIX}"),
+                MessageHandler(Filters.text, job_handler.image),
+                CallbackQueryHandler(job_handler.image_cb, pass_user_data=True, pattern=f"^{_CB_IMAGE_PREFIX}"),
             ],
             JobStates.MOUNT_SOURCE: [
-                CallbackQueryHandler(
-                    job_definition.mount_source_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_SOURCE}"
-                ),
+                CallbackQueryHandler(job_handler.mount_source_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_SOURCE}"),
             ],
             JobStates.MOUNT_TARGET: [
-                CallbackQueryHandler(
-                    job_definition.mount_target_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_TARGET}"
-                ),
-                MessageHandler(Filters.text, job_definition.mount_target),
+                CallbackQueryHandler(job_handler.mount_target_cb, pass_user_data=True, pattern=f"^{_CB_MOUNT_TARGET}"),
+                MessageHandler(Filters.text, job_handler.mount_target),
             ],
-            JobStates.DURATION: [MessageHandler(Filters.regex("^\\d+$"), job_definition.duration)],
+            JobStates.DURATION: [MessageHandler(Filters.regex("^\\d+$"), job_handler.duration)],
             JobStates.CONFIRM: [
-                CallbackQueryHandler(job_definition.confirm, pass_user_data=True, pattern=f"^{_CB_FINAL}")
+                CallbackQueryHandler(job_handler.confirm, pass_user_data=True, pattern=f"^{_CB_FINAL}")
+            ],
+            JobStates.INFO: [
+                CallbackQueryHandler(job_handler.job_info, pass_user_data=True, pattern=f"^{_CB_JOB_INFO}")
+            ],
+            JobStates.REMOVE: [
+                CallbackQueryHandler(job_handler.job_rm, pass_user_data=True, pattern=f"^{_CB_JOB_REMOVE}")
             ],
         },
-        fallbacks=[MessageHandler(Filters.text, job_definition.fallback)],
+        fallbacks=[MessageHandler(Filters.text, job_handler.fallback)],
         allow_reentry=True,
     )

@@ -1,16 +1,16 @@
 import logging
-import math
-import time
-from datetime import datetime
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, MessageEntity, Update, User
-from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Filters, Updater
+from telegram.ext import CallbackContext, CommandHandler, Filters, Updater
 from telegram.utils.helpers import escape_markdown
 
 import beer  # noqa
 from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
 
 pylogger = logging.getLogger(__name__)
+
+_CB_JOB_NEW: str = "cb_job_new_"
+_CB_JOB_LIST: str = "cb_job_list_"
 
 
 class BeerBot:
@@ -110,7 +110,7 @@ class BeerBot:
         # TODO: check API permission
         actions = [
             InlineKeyboardButton(text=action_name, callback_data=action_cb)
-            for action_name, action_cb in (("List Jobs", "cb_list_job"), ("New Job", "cb_new_job"))
+            for action_name, action_cb in (("List Jobs", _CB_JOB_LIST), ("New Job", _CB_JOB_NEW))
         ]
 
         context.bot.send_message(
@@ -118,40 +118,6 @@ class BeerBot:
             text="Please select an action",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([actions]),
-        )
-
-    def job_list(self, update: Update, context: CallbackContext):
-        query = update.callback_query
-        query.answer()
-
-        request_user: User = update.effective_user
-
-        user_jobs = self.manager_service.job_list(request_user=request_user)
-
-        now: float = time.time()
-        now: datetime = datetime.fromtimestamp(now)
-
-        message: str = "These are the running jobs associated with your account:\n"
-        for service in user_jobs.data["services"]:
-            job = service["job"]
-            hostname: str = job["worker_hostname"]
-            gpu: str = job["gpu"]["name"]
-            port: str = service["docker_tasks"][0]["Status"]["PortStatus"]["Ports"][0]["PublishedPort"]
-            ip: str = job["gpu"]["worker"]["ip"]
-
-            expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
-            remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
-            print(expected_end)
-            message += f"""
--   Worker:  <b>{hostname}</b>
-    GPU(s): <b>{gpu}</b>
-    Remaining Hours: <b>{remaining_hours}</b>h
-    Access with: <code>ssh root@{ip} -p {port}</code>\n\n"""
-
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message,
-            parse_mode="HTML",
         )
 
     def run(self):
@@ -166,10 +132,9 @@ class BeerBot:
         dispatcher.add_handler(CommandHandler("set_ssh_key", self.set_ssh_key, filters=~Filters.update.edited_message))
         dispatcher.add_handler(CommandHandler("delete_user", self.delete_user, filters=~Filters.update.edited_message))
         dispatcher.add_handler(CommandHandler("job", self.job, filters=~Filters.update.edited_message))
-        dispatcher.add_handler(CallbackQueryHandler(self.job_list, pattern="cb_list_job"))
 
         from beer.bot import job
 
-        dispatcher.add_handler(job.build_handler(bot=self, new_job_cb="cb_new_job"))
+        dispatcher.add_handler(job.build_handler(bot=self))
 
         self.updater.start_polling()

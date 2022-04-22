@@ -166,3 +166,12 @@ class ManagerAPI:
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response)
+
+    def job_rm(self, request_user: User, job_id: str) -> ManagerAnswer:
+        response: Response = self._request(
+            endpoint="job_remove",
+            json=dict(request_user=build_request_user(request_user).dict(), job_id=job_id),
+        )
+        response: Mapping[str, Any] = response.json()
+
+        return ManagerAnswer(**response)
