@@ -9,8 +9,8 @@ from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
 
 pylogger = logging.getLogger(__name__)
 
-_CB_JOB_NEW: str = "cb_job_new_"
-_CB_JOB_LIST: str = "cb_job_list_"
+_CB_JOB_NEW: str = "cb_job_new#"
+_CB_JOB_LIST: str = "cb_job_list#"
 
 
 class BeerBot:
@@ -110,7 +110,7 @@ class BeerBot:
         # TODO: check API permission
         actions = [
             InlineKeyboardButton(text=action_name, callback_data=action_cb)
-            for action_name, action_cb in (("List Jobs", _CB_JOB_LIST), ("New Job", _CB_JOB_NEW))
+            for action_name, action_cb in (("List Active Jobs", _CB_JOB_LIST), ("New Job", _CB_JOB_NEW))
         ]
 
         context.bot.send_message(

@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import auto
 from typing import Sequence
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, User
+from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 
 from beer.bot.telegram_bot import _CB_JOB_LIST, _CB_JOB_NEW, BeerBot
@@ -34,14 +34,15 @@ class JobStates(StrEnum):
 _PREDEFINED_IMAGES: Sequence[str] = ["grokai/beer_job:0.0.1"]
 _PREDEFINED_MOUNTS: Sequence[str] = ["/home/beer/data"]
 
-_CB_IMAGE_PREFIX: str = "cb_image_"
-_CB_FINAL: str = "cb_final_"
-_CB_MOUNT_SOURCE: str = "cb_mount_source_"
-_CB_MOUNT_TARGET: str = "cb_mount_target_"
+_CB_IMAGE_PREFIX: str = "cb_image#"
+_CB_FINAL: str = "cb_final#"
+_CB_MOUNT_SOURCE: str = "cb_mount_source#"
+_CB_MOUNT_TARGET: str = "cb_mount_target#"
 
 
-_CB_JOB_INFO: str = "cb_job_info_"
-_CB_JOB_REMOVE: str = "cb_job_rm_"
+_CB_JOB_INFO: str = "cb_job_info#"
+_CB_JOB_REMOVE: str = "cb_job_rm#"
+_CB_JOB_LIST_RELOAD: str = "cb_job_list_reload#"
 
 
 class JobHandler:
@@ -367,10 +368,24 @@ class JobHandler:
         )
 
     def job_list(self, update: Update, context: CallbackContext):
+        print("job_list")
         query = update.callback_query
         query.answer()
+
         request_user: User = update.effective_user
 
+        text, reply_markup = self.build_job_list(request_user=request_user, context=context)
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=text,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+
+        return JobStates.INFO
+
+    def build_job_list(self, request_user: User, context: CallbackContext):
         user_jobs = self.bot.manager_service.job_list(request_user=request_user)
         services = user_jobs.data["services"]
         context.user_data["jobs"] = services
@@ -389,11 +404,11 @@ class JobHandler:
 
             state: str = status["State"]
             message += f"""
-    <b>{i}]</b> Worker: <b>{hostname}</b>
-        GPU(s): <b>{gpu}</b>
-        Remaining Hours: <b>~{remaining_hours}</b>
-        Job State: <b>{state}</b>
-    """
+                    <b>{i}]</b> Worker: <b>{hostname}</b>
+                        GPU(s): <b>{gpu}</b>
+                        Remaining Hours: <b>~{remaining_hours}</b>
+                        Job State: <b>{state}</b>
+                    """
             if state == "running":
                 port: str = status["PortStatus"]["Ports"][0]["PublishedPort"]
                 ip: str = job["gpu"]["worker"]["ip"]
@@ -401,14 +416,28 @@ class JobHandler:
                 message += f"    Access with: <code>ssh root@{ip} -p {port}</code>\n"
         message += "\n\nClick on one of the following buttons to access their own info."
 
-        job_buttons = [
+        buttons = [
             InlineKeyboardButton(text=f"Job {i}", callback_data=f"{_CB_JOB_INFO}{i}") for i, job in enumerate(services)
         ]
-        context.bot.send_message(
+        buttons.append(InlineKeyboardButton(text="Jobs Reload ♻️", callback_data=f"{_CB_JOB_LIST_RELOAD}"))
+
+        return message, InlineKeyboardMarkup([buttons])
+
+    def job_reload(self, update: Update, context: CallbackContext):
+        print("job-reload")
+        query: CallbackQuery = update.callback_query
+        query.answer()
+
+        request_user: User = update.effective_user
+
+        text, reply_markup = self.build_job_list(request_user=request_user, context=context)
+
+        context.bot.edit_message_text(
             chat_id=update.effective_chat.id,
-            text=message,
+            message_id=query.message.message_id,
+            text=text,
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([job_buttons]),
+            reply_markup=reply_markup,
         )
 
         return JobStates.INFO
@@ -492,7 +521,8 @@ def build_handler(bot: BeerBot) -> ConversationHandler:
                 CallbackQueryHandler(job_handler.confirm, pass_user_data=True, pattern=f"^{_CB_FINAL}")
             ],
             JobStates.INFO: [
-                CallbackQueryHandler(job_handler.job_info, pass_user_data=True, pattern=f"^{_CB_JOB_INFO}")
+                CallbackQueryHandler(job_handler.job_info, pass_user_data=True, pattern=f"^{_CB_JOB_INFO}"),
+                CallbackQueryHandler(job_handler.job_reload, pass_user_data=True, pattern=f"^{_CB_JOB_LIST_RELOAD}"),
             ],
             JobStates.REMOVE: [
                 CallbackQueryHandler(job_handler.job_rm, pass_user_data=True, pattern=f"^{_CB_JOB_REMOVE}")
