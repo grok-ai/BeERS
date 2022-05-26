@@ -3,12 +3,12 @@ from datetime import datetime
 from typing import Optional
 
 import dotenv
-from fastapi.logger import logger as fastapi_logger
 from rich.console import ConsoleRenderable
 from rich.logging import RichHandler
 from rich.traceback import Traceback
 
 
+# TODO: not working properly :]
 class NNRichHandler(RichHandler):
     def render(
         self,
@@ -51,10 +51,14 @@ logging.basicConfig(
     handlers=[handler],
 )
 
-# TODO: not working :]
 # Remove all handlers associated with the fastapi logger.
-fastapi_logger.handlers = [handler]
-fastapi_logger.propagate = True
+# try:
+#     from fastapi.logger import logger as fastapi_logger
+#
+#     fastapi_logger.handlers = [handler]
+#     fastapi_logger.propagate = True
+# except Exception:
+#     pass
 
 dotenv.load_dotenv(dotenv_path=None, override=True)
 
