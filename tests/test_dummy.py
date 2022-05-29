@@ -1,4 +1,4 @@
 def test_package_setup() -> None:
-    import beer
+    import beers
 
-    assert beer._version
+    assert beers._version

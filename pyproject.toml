@@ -35,7 +35,7 @@ add-ignore = ['D100', 'D101', 'D102', 'D103', 'D104', 'D105', 'D106', 'D107']
 skips = ["B101"]
 
 [tool.setuptools_scm]
-write_to = "src/beer/_version.py"
+write_to = "src/beers/_version.py"
 write_to_template = '__version__ = "{version}"'
 
 [build-system]

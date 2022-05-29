@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from requests import Response
 from telegram import User
 
-from beer.models import JobRequestModel, RequestUser
-from beer.utils import StrEnum
+from beers.models import JobRequestModel, RequestUser
+from beers.utils import StrEnum
 
 
 class PermissionLevel(Enum):

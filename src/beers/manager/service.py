@@ -14,14 +14,13 @@ from playhouse.shortcuts import model_to_dict
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+import beers  # noqa
 import docker
-
-import beer  # noqa
-from beer.manager import beer_db
-from beer.manager.api import ManagerAnswer, PermissionLevel, ReturnCodes
-from beer.manager.beer_db import GPU, DBError, Job, User, Worker
-from beer.models import JobRequestModel, RequestUser, WorkerModel
-from beer.utils import run_service
+from beers.manager import beer_db
+from beers.manager.api import ManagerAnswer, PermissionLevel, ReturnCodes
+from beers.manager.beer_db import GPU, DBError, Job, User, Worker
+from beers.models import JobRequestModel, RequestUser, WorkerModel
+from beers.utils import run_service
 
 pylogger = logging.getLogger(__name__)
 
@@ -30,12 +29,12 @@ _DATA_CODE_KEY: str = "data"
 
 _SWARM_RESOURCE: str = "DOCKER_RESOURCE_GPU"
 
-_SERVICE_LABEL_USER_ID: str = "beer.user_id"
-_SERVICE_LABEL_EXPIRE: str = "beer.expire"
-_SERVICE_LABEL_GPUS: str = "beer.gpus"
+_SERVICE_LABEL_USER_ID: str = "beers.user_id"
+_SERVICE_LABEL_EXPIRE: str = "beers.expire"
+_SERVICE_LABEL_GPUS: str = "beers.gpus"
 _SERVICE_LABEL_GPU_SEP: str = "#"
 
-_LABEL_NFS_SERVER: str = "beer.nfs_server"
+_LABEL_NFS_SERVER: str = "beers.nfs_server"
 
 _CONFIG_PREFIX: str = "beer_ssh-key_"
 

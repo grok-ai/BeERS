@@ -7,7 +7,7 @@ on:
 
 env:
   CONDA_ENV_FILE: './env.yaml'
-  CONDA_ENV_NAME: 'beer'
+  CONDA_ENV_NAME: 'beers'
 
 
 jobs:

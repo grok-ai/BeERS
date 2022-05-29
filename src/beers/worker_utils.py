@@ -7,8 +7,8 @@ from typing import Optional
 
 import psutil
 
-from beer import nvidia
-from beer.models import WorkerModel
+from beers import nvidia
+from beers.models import WorkerModel
 
 pylogger = logging.getLogger(__name__)
 

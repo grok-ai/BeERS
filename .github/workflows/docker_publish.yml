@@ -1,5 +1,5 @@
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
-name: Publish beer_job Docker image
+name: Publish beers_job Docker image
 
 #on:
 #  release:
@@ -11,7 +11,7 @@ on:
       - develop
       - main
     paths:
-      - '**/beer_job.Dockerfile'
+      - '**/beers_job.Dockerfile'
 
 jobs:
   push_to_registry:
@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: grokai/beer_job
+          images: grokai/beers_job
           tags: |
             type=semver,pattern={{version}},value=v0.0.1
 
@@ -39,7 +39,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: docker
-          file: docker/beer_job.Dockerfile
+          file: docker/beers_job.Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -19,10 +19,10 @@ from peewee import (
 )
 from playhouse.sqlite_ext import JSONField
 
-import beer  # noqa
-from beer.manager.api import PermissionLevel
-from beer.models import WorkerModel
-from beer.nvidia import NvidiaGPU
+import beers  # noqa
+from beers.manager.api import PermissionLevel
+from beers.models import WorkerModel
+from beers.nvidia import NvidiaGPU
 
 _db: SqliteDatabase = SqliteDatabase(os.environ["BEER_DB_PATH"])
 pylogger = logging.getLogger(__name__)

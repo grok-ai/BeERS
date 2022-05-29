@@ -4,8 +4,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, Messag
 from telegram.ext import CallbackContext, CommandHandler, Filters, Updater
 from telegram.utils.helpers import escape_markdown
 
-import beer  # noqa
-from beer.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
+import beers  # noqa
+from beers.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
 
 pylogger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ _CB_JOB_NEW: str = "cb_job_new#"
 _CB_JOB_LIST: str = "cb_job_list#"
 
 
-class BeerBot:
+class BeersBot:
     def __init__(self, bot_token: str, manager_url: str):
         self.updater = Updater(token=bot_token, use_context=True)
         self.manager_service: ManagerAPI = ManagerAPI(manager_url=manager_url)
@@ -133,7 +133,7 @@ class BeerBot:
         dispatcher.add_handler(CommandHandler("delete_user", self.delete_user, filters=~Filters.update.edited_message))
         dispatcher.add_handler(CommandHandler("job", self.job, filters=~Filters.update.edited_message))
 
-        from beer.bot import job
+        from beers.bot import job
 
         dispatcher.add_handler(job.build_handler(bot=self))
 

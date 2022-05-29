@@ -10,10 +10,10 @@ from typing import Sequence
 from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 
-from beer.bot.telegram_bot import _CB_JOB_LIST, _CB_JOB_NEW, BeerBot
-from beer.manager.api import MESSAGE_TEMPLATES, ManagerAnswer, ReturnCodes
-from beer.models import JobRequestModel
-from beer.utils import StrEnum
+from beers.bot.telegram_bot import _CB_JOB_LIST, _CB_JOB_NEW, BeersBot
+from beers.manager.api import MESSAGE_TEMPLATES, ManagerAnswer, ReturnCodes
+from beers.models import JobRequestModel
+from beers.utils import StrEnum
 
 pylogger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class JobStates(StrEnum):
 
 
 _PREDEFINED_IMAGES: Sequence[str] = ["grokai/beer_job:0.0.1"]
-_PREDEFINED_MOUNTS: Sequence[str] = ["/home/beer/data"]
+_PREDEFINED_MOUNTS: Sequence[str] = ["/home/beers/data"]
 
 _CB_IMAGE_PREFIX: str = "cb_image#"
 _CB_FINAL: str = "cb_final#"
@@ -46,7 +46,7 @@ _CB_JOB_LIST_RELOAD: str = "cb_job_list_reload#"
 
 
 class JobHandler:
-    def __init__(self, bot: BeerBot):
+    def __init__(self, bot: BeersBot):
         self.bot = bot
 
     def job_new(self, update: Update, context: CallbackContext):
@@ -270,7 +270,7 @@ class JobHandler:
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="Please now type an <b>absolute path</b>. "
-                "Keeping in mind that the default home is <code>/home/beer</code>",
+                "Keeping in mind that the default home is <code>/home/beers</code>",
                 parse_mode="HTML",
             )
             return JobStates.MOUNT_TARGET
@@ -495,7 +495,7 @@ class JobHandler:
         return self.job_list(update=update, context=context)
 
 
-def build_handler(bot: BeerBot) -> ConversationHandler:
+def build_handler(bot: BeersBot) -> ConversationHandler:
     job_handler = JobHandler(bot=bot)
 
     return ConversationHandler(

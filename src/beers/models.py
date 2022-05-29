@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from pydantic import BaseModel
 
-from beer.nvidia import NvidiaGPU
+from beers.nvidia import NvidiaGPU
 
 
 class WorkerModel(BaseModel):

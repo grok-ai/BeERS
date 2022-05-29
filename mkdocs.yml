@@ -1,6 +1,6 @@
-site_name: beer
-site_description: Better Enabled Resources
-repo_url: https://github.com/grok-ai/beer
+site_name: beers
+site_description: Better Enabled Resource Sharing
+repo_url: https://github.com/grok-ai/beers
 
 nav:
   - Home: index.md
