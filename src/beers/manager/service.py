@@ -178,7 +178,9 @@ def register_user(request_user: RequestUser, user_id: str = Body(None)):
     pylogger.info(f"Registering: {user_id}")
     try:
         User.register(user_id=user_id, permission_level=PermissionLevel.USER)
-        nfs_workers: Sequence[Node] = client.nodes.list(filters={"label": _LABEL_NFS_SERVER})
+        nfs_workers: Sequence[Node] = [
+            node for node in client.nodes.list() if _LABEL_NFS_SERVER in node.attrs["Spec"]["Labels"]
+        ]
         _update_nfs_nodes(workers=nfs_workers)
         return ManagerAnswer(code=ReturnCodes.REGISTRATION_SUCCESSFUL, data={"user_id": user_id})
     except Exception as e:
