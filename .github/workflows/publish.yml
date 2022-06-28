@@ -1,124 +1,63 @@
-name: Publish
+name: PyPi publish
 
 on:
   release:
     types:
       - created
 
-env:
-  CONDA_ENV_FILE: './env.yaml'
-  CONDA_ENV_NAME: 'beers'
-
-
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.9']
-        include:
-          - os: ubuntu-20.04
-            label: linux-64
-            prefix: /usr/share/miniconda3/envs/
+  build-n-publish:
+    name: Build and publish to PyPI and TestPyPI
+    runs-on: ubuntu-20.04
 
-    name: ${{ matrix.label }}-py${{ matrix.python-version }}
-    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      CI: 'true'
+      OS: 'linux'
+      PYTHON_VERSION: ${{ matrix.PYTHON_VERSION }}
+
+    strategy:
+      matrix:
+        PYTHON_VERSION: [ 3.9 ]
 
     steps:
-      - name: Parametrize conda env name
-        run: echo "PY_CONDA_ENV_NAME=${{ env.CONDA_ENV_NAME }}-${{ matrix.python-version }}" >> $GITHUB_ENV
-      - name: echo conda env name
-        run: echo ${{ env.PY_CONDA_ENV_NAME }}
-
-      - name: Parametrize conda prefix
-        run: echo "PY_PREFIX=${{ matrix.prefix }}${{ env.PY_CONDA_ENV_NAME }}" >> $GITHUB_ENV
-      - name: echo conda prefix
-        run: echo ${{ env.PY_PREFIX }}
-
-      # extract the first two digits from the release note
-      - name: Set release notes tag
-        run: |
-          export RELEASE_TAG_VERSION=${{ github.event.release.tag_name }}
-          echo "RELEASE_TAG_VERSION=${RELEASE_TAG_VERSION%.*}">> $GITHUB_ENV
-
-      - name: Echo release notes tag
-        run: |
-          echo "${RELEASE_TAG_VERSION}"
-
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
 
-      # Remove the python version pin from the env.yml which could be inconsistent
-      - name: Remove explicit python version from the environment
-        shell: bash -l {0}
-        run: |
-          sed -Ei '/^\s*-?\s*python\s*([#=].*)?$/d' ${{ env.CONDA_ENV_FILE }}
-          cat  ${{ env.CONDA_ENV_FILE }}
-
-      - name: Setup Mambaforge
+      - name: Conda init
         uses: conda-incubator/setup-miniconda@v2
         with:
-            miniforge-variant: Mambaforge
-            miniforge-version: latest
-            activate-environment: ${{ env.PY_CONDA_ENV_NAME }}
-            python-version: ${{ matrix.python-version }}
-            use-mamba: true
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
+          activate-environment: beers
+          use-mamba: true
+          auto-activate-base: false
+          #          environment-file: env.yaml
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
 
-      # Ensure the hack for the python version worked
-      - name: Ensure we have the right Python
-        shell: bash -l {0}
-        run: |
-          echo "Installed Python: $(python --version)"
-          echo "Expected: ${{ matrix.python-version }}"
-          python --version | grep "Python ${{ matrix.python-version }}"
+#      - name: Conda env update (no cache)
+#        run: mamba env update -n beers -f env.yaml
 
-      - name: Update conda environment
-        run: mamba env update -n ${{ env.PY_CONDA_ENV_NAME }} -f ${{ env.CONDA_ENV_FILE }}
+#      - run: pip3 list
+#      - run: mamba info
+#      - run: mamba list
+#      - run: mamba config --show
 
-      # Update pip env
-      - name: Update pip environment
-        shell: bash -l {0}
-        run: pip install -e ".[dev]"
-
-      - run: pip3 list
-        shell: bash -l {0}
-      - run: mamba info
-      - run: mamba list
-
-       # Ensure the hack for the python version worked
-      - name: Ensure we have the right Python
-        shell: bash -l {0}
-        run: |
-          echo "Installed Python: $(python --version)"
-          echo "Expected: ${{ matrix.python-version }}"
-          python --version | grep "Python ${{ matrix.python-version }}"
-
-      - name: Run pre-commits
-        shell: bash -l {0}
-        run: |
-          pre-commit install
-          pre-commit run -v --all-files --show-diff-on-failure
-
-      - name: Test with pytest
-        shell: bash -l {0}
-        run: |
-          pytest -v
-
-#      - name: Build docs website
-#        shell: bash -l {0}
-#        run: |
-#          git config user.name ci-bot
-#          git config user.email ci-bot@ci.com
-#          mike deploy --push --rebase --update-aliases ${RELEASE_TAG_VERSION} latest
-#          mike set-default latest
-
-        # Uncomment to publish on PyPI on release
       - name: Build SDist and wheel
         run: pipx run build
 
       - name: Check metadata
         run: pipx run twine check dist/*
+
+# TODO: activate only for develop branch
+#      - name: Publish distribution 📦 to Test PyPI
+#        uses: pypa/gh-action-pypi-publish@release/v1
+#        with:
+#          user: __token__
+#          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+#          repository_url: https://test.pypi.org/legacy/
 
       - name: Publish distribution 📦 to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
