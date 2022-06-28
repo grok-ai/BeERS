@@ -10,6 +10,7 @@ from typing import Sequence
 from telegram import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Update, User
 from telegram.ext import CallbackContext, CallbackQueryHandler, ConversationHandler, Filters, MessageHandler
 
+from beers.bot import build_request_user
 from beers.bot.telegram_bot import _CB_JOB_LIST, _CB_JOB_NEW, BeersBot
 from beers.manager.api import MESSAGE_TEMPLATES, ManagerAnswer, ReturnCodes
 from beers.models import JobRequestModel
@@ -54,7 +55,7 @@ class JobHandler:
         query.answer()
         request_user: User = update.effective_user
 
-        if not self.bot.manager_service.check_ssh_key(request_user=request_user):
+        if not self.bot.manager_service.check_ssh_key(request_user=build_request_user(request_user)):
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=MESSAGE_TEMPLATES[ReturnCodes.KEY_MISSING_ERROR],
@@ -62,7 +63,9 @@ class JobHandler:
             )
             return ConversationHandler.END
 
-        resources_answer: ManagerAnswer = self.bot.manager_service.list_resources(request_user=request_user)
+        resources_answer: ManagerAnswer = self.bot.manager_service.list_resources(
+            request_user=build_request_user(request_user)
+        )
         if resources_answer.code == ReturnCodes.RESOURCES:
             context.user_data["resources"] = resources_answer.data
             context.user_data["job"] = {}
@@ -340,7 +343,9 @@ class JobHandler:
                 mounts=job_details["mounts"],
             )
 
-            resources_answer: ManagerAnswer = self.bot.manager_service.job(request_user=request_user, job=job)
+            resources_answer: ManagerAnswer = self.bot.manager_service.job(
+                request_user=build_request_user(request_user), job=job
+            )
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text=resources_answer.message,
@@ -386,7 +391,7 @@ class JobHandler:
         return JobStates.INFO
 
     def build_job_list(self, request_user: User, context: CallbackContext):
-        user_jobs = self.bot.manager_service.job_list(request_user=request_user)
+        user_jobs = self.bot.manager_service.job_list(request_user=build_request_user(request_user))
         services = user_jobs.data["services"]
         context.user_data["jobs"] = services
 
@@ -490,7 +495,7 @@ class JobHandler:
             query.answer("Something went wrong. Please try again.")
             return
 
-        self.bot.manager_service.job_rm(request_user=request_user, job_id=job["job"]["service"])
+        self.bot.manager_service.job_rm(request_user=build_request_user(request_user), job_id=job["job"]["service"])
 
         return self.job_list(update=update, context=context)
 

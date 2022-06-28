@@ -5,6 +5,7 @@ from telegram.ext import CallbackContext, CommandHandler, Filters, Updater
 from telegram.utils.helpers import escape_markdown
 
 import beers  # noqa
+from beers.bot import build_request_user
 from beers.manager.api import ManagerAnswer, ManagerAPI, PermissionLevel
 
 pylogger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class BeersBot:
 
         # Add the user
         register_message: ManagerAnswer = self.manager_service.register_user(
-            request_user=request_user, user_id=str(user_to_add)
+            request_user=build_request_user(request_user), user_id=str(user_to_add)
         )
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -74,7 +75,7 @@ class BeersBot:
         request_user: User = update.effective_user
         # Update the user with the chosen permissions
         update_message: ManagerAnswer = self.manager_service.set_permission(
-            request_user=request_user, user_id=str(user_to_add), permission_level=permission_level
+            request_user=build_request_user(request_user), user_id=str(user_to_add), permission_level=permission_level
         )
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -95,7 +96,9 @@ class BeersBot:
 
         request_user: User = update.effective_user
 
-        update_message: ManagerAnswer = self.manager_service.set_ssh_key(request_user=request_user, ssh_key=ssh_key)
+        update_message: ManagerAnswer = self.manager_service.set_ssh_key(
+            request_user=build_request_user(request_user), ssh_key=ssh_key
+        )
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=update_message.message,

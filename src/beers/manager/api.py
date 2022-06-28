@@ -5,7 +5,6 @@ from typing import Any, Callable, Mapping
 import requests
 from pydantic import BaseModel
 from requests import Response
-from telegram import User
 
 from beers.models import JobRequestModel, RequestUser
 from beers.utils import StrEnum
@@ -76,10 +75,6 @@ class ManagerAnswer(BaseModel):
         return f"{self.code}:\n\n{json.dumps(self.data, indent=4)}"
 
 
-def build_request_user(user: User) -> RequestUser:
-    return RequestUser(user_id=str(user.id), username=user.username, full_name=user.full_name)
-
-
 class ManagerAPI:
     def __init__(self, manager_url: str):
         self.manager_url: str = manager_url
@@ -87,20 +82,22 @@ class ManagerAPI:
     def _request(self, endpoint: str, **kwargs) -> Response:
         return requests.post(f"{self.manager_url}/{endpoint}", **kwargs)
 
-    def register_user(self, request_user: User, user_id: str) -> ManagerAnswer:
+    def register_user(self, request_user: RequestUser, user_id: str) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="register_user",
-            json=dict(request_user=build_request_user(request_user).dict(), user_id=user_id),
+            json=dict(request_user=request_user.dict(), user_id=user_id),
         )
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response)
 
-    def set_permission(self, request_user: User, user_id: str, permission_level: PermissionLevel) -> ManagerAnswer:
+    def set_permission(
+        self, request_user: RequestUser, user_id: str, permission_level: PermissionLevel
+    ) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="set_permission",
             json=dict(
-                request_user=build_request_user(request_user).dict(),
+                request_user=request_user.dict(),
                 user_id=user_id,
                 permission_level=permission_level,
             ),
@@ -109,29 +106,29 @@ class ManagerAPI:
 
         return ManagerAnswer(**response)
 
-    def list_resources(self, request_user: User) -> ManagerAnswer:
+    def list_resources(self, request_user: RequestUser) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="list_resources",
-            json=dict(request_user=build_request_user(request_user).dict(), only_available=True, only_online=True),
+            json=dict(request_user=request_user.dict(), only_available=True, only_online=True),
         )
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
 
-    def job(self, request_user: User, job: JobRequestModel) -> ManagerAnswer:
+    def job(self, request_user: RequestUser, job: JobRequestModel) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="job",
             json=dict(
-                request_user=build_request_user(request_user).dict(),
+                request_user=request_user.dict(),
                 job=job.dict(),
             ),
         )
         response: Mapping[str, Any] = response.json()
         return ManagerAnswer(**response)
 
-    def set_ssh_key(self, request_user: User, ssh_key: str) -> ManagerAnswer:
+    def set_ssh_key(self, request_user: RequestUser, ssh_key: str) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="set_ssh_key",
-            json=dict(request_user=build_request_user(request_user).dict(), ssh_key=ssh_key),
+            json=dict(request_user=request_user.dict(), ssh_key=ssh_key),
         )
 
         response: Mapping[str, Any] = response.json()
@@ -146,10 +143,10 @@ class ManagerAPI:
 
         return ManagerAnswer(**response).code == ReturnCodes.READY
 
-    def check_ssh_key(self, request_user: User) -> bool:
+    def check_ssh_key(self, request_user: RequestUser) -> bool:
         response: Response = self._request(
             endpoint="check_ssh_key",
-            json=build_request_user(request_user).dict(),
+            json=request_user.dict(),
         )
         response: Mapping[str, Any] = response.json()
 
@@ -158,19 +155,19 @@ class ManagerAPI:
         except Exception:
             return False
 
-    def job_list(self, request_user: User) -> ManagerAnswer:
+    def job_list(self, request_user: RequestUser) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="job_list",
-            json=build_request_user(request_user).dict(),
+            json=request_user.dict(),
         )
         response: Mapping[str, Any] = response.json()
 
         return ManagerAnswer(**response)
 
-    def job_rm(self, request_user: User, job_id: str) -> ManagerAnswer:
+    def job_rm(self, request_user: RequestUser, job_id: str) -> ManagerAnswer:
         response: Response = self._request(
             endpoint="job_remove",
-            json=dict(request_user=build_request_user(request_user).dict(), job_id=job_id),
+            json=dict(request_user=request_user.dict(), job_id=job_id),
         )
         response: Mapping[str, Any] = response.json()
 
