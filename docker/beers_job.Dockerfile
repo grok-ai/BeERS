@@ -29,7 +29,7 @@ RUN conda update -y conda && conda init
 #RUN sed -i -E 's/#?PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
 #
 # Change root password
-RUN echo 'root:beers' | chpasswd
+# RUN echo 'root:beers' | chpasswd
 #
 # Allow SSH root login
 RUN sed -ri 's/^#?PermitRootLogin\s+.*/PermitRootLogin yes/' /etc/ssh/sshd_config
