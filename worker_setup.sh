@@ -56,6 +56,7 @@ sudo systemctl restart docker
 
 # NFS setup
 if [[ "$NFS_DIR" != 1 ]]; then
+  mkdir -p "$NFS_DIR"
   sudo apt update
   sudo apt install nfs-kernel-server
 
