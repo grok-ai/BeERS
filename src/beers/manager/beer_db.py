@@ -1,7 +1,7 @@
 import itertools
 import logging
 import operator
-import os
+from pathlib import Path
 from typing import Mapping, Sequence
 
 import orjson
@@ -24,7 +24,7 @@ from beers.manager.api import PermissionLevel
 from beers.models import WorkerModel
 from beers.nvidia import NvidiaGPU
 
-_db: SqliteDatabase = SqliteDatabase(os.environ["BEER_DB_PATH"])
+_db: SqliteDatabase = SqliteDatabase(None)
 pylogger = logging.getLogger(__name__)
 
 
@@ -170,7 +170,8 @@ class Job(Model):
         database = _db
 
 
-def init(owner_id: str):
+def init(owner_id: str, db_path: Path):
+    _db.init(db_path)
     _db.connect(reuse_if_open=True)
     _db.create_tables(models=[User, Worker, Job, GPU])
     User.register(user_id=owner_id, permission_level=PermissionLevel.OWNER)

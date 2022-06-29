@@ -1,6 +1,7 @@
 import logging
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, List, Mapping, Optional, Sequence, Set, Tuple
 
 import orjson
@@ -405,7 +406,7 @@ def list_resources(request_user: RequestUser, only_online: bool = Body(None), on
     )
 
 
-def run(service_port: int, service_host: str, owner_id: str):
-    beer_db.init(owner_id=owner_id)
+def run(service_port: int, service_host: str, owner_id: str, db_path: Path):
+    beer_db.init(owner_id=owner_id, db_path=db_path)
 
     run_service(app=app, service_host=service_host, service_port=service_port)

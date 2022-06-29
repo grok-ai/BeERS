@@ -183,6 +183,7 @@ def _init_manager(
     rest_port: int = typer.Option(4242, prompt=True, envvar="MANAGER_REST_PORT"),
     rest_host: str = typer.Option("0.0.0.0", prompt=True, envvar="MANAGER_REST_HOST"),
     owner_id: str = typer.Option(..., prompt=True, envvar="OWNER_ID"),
+    db_path: str = typer.Option(..., prompt=True, envvar="BEERS_DB_PATH"),
     hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
     #
     traefik: bool = typer.Option(False, prompt=True, envvar="USE_TRAEFIK"),
@@ -242,7 +243,8 @@ def _init_manager(
 
     from beers.manager import service
 
-    service.run(service_host=rest_host, service_port=rest_port, owner_id=owner_id)
+    db_path: Path = Path(db_path)
+    service.run(service_host=rest_host, service_port=rest_port, owner_id=owner_id, db_path=db_path)
 
 
 @service_app.command("worker")
