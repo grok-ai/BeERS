@@ -293,13 +293,14 @@ def _init_worker(
 def _init_bot(
     manager_ip: str = typer.Option(..., prompt=True),
     manager_rest_port: int = typer.Option(..., prompt=True),
+    telegram_api_key: str = typer.Option(..., prompt=True, envvar="TELEGRAM_API_KEY"),
     protocol: str = typer.Argument("http"),
 ):
     from beers.bot.telegram_bot import BeersBot
 
     manager_url: str = f"{protocol}://{manager_ip}:{manager_rest_port}"
 
-    BeersBot(bot_token=os.environ["TELEGRAM_API_KEY"], manager_url=manager_url).run()
+    BeersBot(bot_token=telegram_api_key, manager_url=manager_url).run()
 
 
 if __name__ == "__main__":
