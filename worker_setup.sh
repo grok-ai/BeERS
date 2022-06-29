@@ -63,4 +63,5 @@ if [[ "$NFS_DIR" != 1 ]]; then
 $NFS_DIR  $NFS_ALLOWED_RULE(rw,no_root_squash,subtree_check)
 EOF
   sudo systemctl enable --now nfs-kernel-server
+  sudo exportfs -r
 fi
