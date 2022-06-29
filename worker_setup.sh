@@ -15,6 +15,8 @@ function join_by {
   echo "$*"
 }
 
+echo "Fetching available GPUs"
+
 GPU_IDS=$(nvidia-smi -a | grep UUID | awk '{print $4}')
 
 gpu_resources=()
@@ -28,6 +30,7 @@ gpus_list=$(join_by , "${gpu_resources[@]}")
 ram=$(free -g | awk '/^Mem:/{print $2}')
 ram=$((ram/2))
 
+echo "Updating /etc/docker/daemon.json"
 
 # This solution needs nvidia-container-runtime to be available!
 cat <<EOF | sudo tee /etc/docker/daemon.json
@@ -46,9 +49,13 @@ cat <<EOF | sudo tee /etc/docker/daemon.json
 }
 EOF
 
+echo "Updating /etc/nvidia-container-runtime/config.toml"
+
 ## Allow the GPU to be advertised as a swarm resource
 sudo sed -i '/swarm-resource = "DOCKER_RESOURCE_GPU/d' /etc/nvidia-container-runtime/config.toml
 sudo sed -i '1iswarm-resource = "DOCKER_RESOURCE_GPU"' /etc/nvidia-container-runtime/config.toml
+
+echo "Reloading Docker"
 
 # Reload the Docker daemon
 sudo systemctl daemon-reload
@@ -56,13 +63,19 @@ sudo systemctl restart docker
 
 # NFS setup
 if [[ "$NFS_DIR" != 1 ]]; then
+  echo "Installing nfs-kernel-server via apt"
+
   mkdir -p "$NFS_DIR"
   sudo apt update
   sudo apt install nfs-kernel-server
 
+  echo "Updating /etc/exports"
+
   cat <<EOF | sudo tee /etc/exports
 $NFS_DIR  $NFS_ALLOWED_RULE(rw,no_root_squash,subtree_check)
 EOF
+
+  echo "Enabling and reloading NFS service"
   sudo systemctl enable --now nfs-kernel-server
   sudo exportfs -r
 fi
