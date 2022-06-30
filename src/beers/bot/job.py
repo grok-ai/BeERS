@@ -32,7 +32,7 @@ class JobStates(StrEnum):
     REMOVE = auto()
 
 
-_PREDEFINED_IMAGES: Sequence[str] = ["grokai/beer_job:0.0.1"]
+_PREDEFINED_IMAGES: Sequence[str] = ["grokai/beers_job:0.0.1"]
 _PREDEFINED_MOUNTS: Sequence[str] = ["/home/beers/data"]
 
 _CB_IMAGE_PREFIX: str = "cb_image#"
@@ -403,7 +403,16 @@ class JobHandler:
             job = service["job"]
             hostname: str = job["worker_hostname"]
             gpu: str = job["gpu"]["name"]
-            status: dict = service["docker_tasks"][0]["Status"]
+            status: Sequence = [
+                container["Status"]
+                for container in service["docker_tasks"]
+                if container.get("Status", {"State": {}}).get("State", None) == "running"
+            ]
+            if len(status) == 0:
+                status = service["docker_tasks"][0]
+            else:
+                status = status[0]
+
             expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
             remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
 
