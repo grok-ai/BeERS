@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import configparser
 import logging
-import os
 import re
 import sys
 from importlib.metadata import PackageNotFoundError
@@ -52,7 +51,7 @@ def parse_requires(subcommand: str) -> Sequence[str]:
     parser.read(config)
 
     # TODO: handle multiple ways to declare extras_require (e.g. inline and mixed)
-    return parser["options.extras_require"][subcommand].strip().splitlines()
+    return parser["options.extras_require"].get(subcommand, "").strip().splitlines()
 
 
 def _bash_run(script_path: Path, env: Mapping[str, str]):
@@ -288,7 +287,24 @@ def _init_worker(
             # TODO
             pylogger.error(f"Could not connect to {manager_url}: {exc.args})")
             return
-    #
+
+
+@service_app.command("worker_setup")
+def _setup_worker(
+    local_nfs_root: str = typer.Option(default="", prompt=True),
+):
+    import importlib.resources as pkg_resources
+    import getpass
+    import subprocess
+    from beers import scripts
+
+    script_path = pkg_resources.path(scripts, "worker_setup.sh")
+
+    username = getpass.getuser()
+    if username != "root":
+        raise RuntimeError(f"This command must be executed with root privileges! Current username: {username}")
+
+    subprocess.call(f"{script_path} {local_nfs_root}", shell=True)
 
 
 @service_app.command("bot")
