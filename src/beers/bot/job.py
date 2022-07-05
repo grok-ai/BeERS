@@ -398,37 +398,40 @@ class JobHandler:
         now: float = time.time()
         now: datetime = datetime.fromtimestamp(now)
 
-        message: str = "These are the running jobs associated with your account:\n"
-        for i, service in enumerate(services):
-            job = service["job"]
-            hostname: str = job["worker_hostname"]
-            gpu: str = job["gpu"]["name"]
-            status: Sequence = [
-                container["Status"]
-                for container in service["docker_tasks"]
-                if container.get("Status", {"State": {}}).get("State", None) == "running"
-            ]
-            if len(status) == 0:
-                status = service["docker_tasks"][0]
-            else:
-                status = status[0]
+        if len(services) > 0:
+            message: str = "These are the running jobs (Docker containers) associated with your account:\n"
+            for i, service in enumerate(services):
+                job = service["job"]
+                hostname: str = job["worker_hostname"]
+                gpu: str = job["gpu"]["name"]
+                status: Sequence = [
+                    container["Status"]
+                    for container in service["docker_tasks"]
+                    if container.get("Status", {"State": {}}).get("State", None) == "running"
+                ]
+                if len(status) == 0:
+                    status = service["docker_tasks"][0]
+                else:
+                    status = status[0]
 
-            expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
-            remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
+                expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
+                remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
 
-            state: str = status["State"]
-            message += f"""
-                    <b>{i}]</b> Worker: <b>{hostname}</b>
-                        GPU(s): <b>{gpu}</b>
-                        Remaining Hours: <b>~{remaining_hours}</b>
-                        Job State: <b>{state}</b>
-                    """
-            if state == "running":
-                port: str = status["PortStatus"]["Ports"][0]["PublishedPort"]
-                ip: str = job["gpu"]["worker"]["ip"]
+                state: str = status["State"]
+                message += f"""
+                        <b>{i}]</b> Worker: <b>{hostname}</b>
+                            GPU(s): <b>{gpu}</b>
+                            Remaining Hours: <b>~{remaining_hours}</b>
+                            Job State: <b>{state}</b>
+                        """
+                if state == "running":
+                    port: str = status["PortStatus"]["Ports"][0]["PublishedPort"]
+                    ip: str = job["gpu"]["worker"]["ip"]
 
-                message += f"    Access with: <code>ssh root@{ip} -p {port}</code>\n"
-        message += "\n\nClick on one of the following buttons to access their own info."
+                    message += f"    Access with: <code>ssh root@{ip} -p {port}</code>\n"
+            message += "\n\nClick on one of the following buttons to access their own info."
+        else:
+            message = "There is no pending job for your account."
 
         buttons = [
             InlineKeyboardButton(text=f"Job {i}", callback_data=f"{_CB_JOB_INFO}{i}") for i, job in enumerate(services)
