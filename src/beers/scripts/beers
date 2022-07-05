@@ -215,7 +215,7 @@ def _init_manager(
     client = docker.from_env()
 
     if swarm_init:
-        pylogger.error("swarm_init")
+        pylogger.warning("Initializing new Docker swarm")
         client.swarm.leave(force=True)
 
         _: str = client.swarm.init(
