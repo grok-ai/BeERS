@@ -3,6 +3,7 @@ import configparser
 import logging
 import re
 import sys
+from collections import Counter
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version
 from multiprocessing import Process
@@ -157,21 +158,31 @@ def run_event_listener():
         decode=True,
         filters={"scope": "swarm", "type": "node"},
     )
+
     for event in events:
+        nodes: Sequence[Node] = list(client.nodes.list())
+        logger.warning([node.attrs for node in nodes])
+        hostname2count: Mapping[str, int] = Counter([node.attrs["Description"]["Hostname"] for node in nodes])
+        logger.warning(f"{hostname2count=}")
+
         # {'Type': 'node', 'Action': 'update',
         #  'Actor': {'ID': 'pou5nqcitq0y0x1wmhrrwdn8q', 'Attributes': {'name': __main__: 124
         # 'cm-shannon', 'state.new': 'down', 'state.old': 'ready'}}, 'scope': 'swarm', 'time': 1650372820, 'timeNano':
         # 1650372820734862390}
         logger.debug(f"[Swarm Event]: {event}")
 
-        try:
-            actor: dict = event["Actor"]
-            attrs: dict = actor["Attributes"]
-            if attrs.get("state.new") == "down":
-                node: Node = client.nodes.get(node_id=actor["ID"])
-                node.remove(force=True)
-        except Exception as e:
-            logger.error(f"Error with events: {e}")
+        # TODO: remove nodes with same hostname when state.new == down or state.now == ready.
+        #  This can only happen when a `docker swarm leave` is issued on the worker side
+
+        # try:
+        #     actor: dict = event["Actor"]
+        #     attrs: dict = actor["Attributes"]
+        #     if attrs.get("state.new") == "down":
+        #         node: Node = client.nodes.get(node_id=actor["ID"])
+        #         if hostname2count.get(node.attrs["Description"]["Hostname"], 0) > 1:
+        #             node.remove(force=True)
+        # except Exception as e:
+        #     logger.error(f"Error with events: {e}")
     events.close()  # TODO: where/when?
 
 
@@ -183,6 +194,7 @@ def _init_manager(
     rest_host: str = typer.Option("0.0.0.0", prompt=True, envvar="MANAGER_REST_HOST"),
     owner_id: str = typer.Option(..., prompt=True, envvar="OWNER_ID"),
     db_path: str = typer.Option(..., prompt=True, envvar="BEERS_DB_PATH"),
+    advertise_addr: str = typer.Option(default="tun0", prompt=True),
     hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
     #
     traefik: bool = typer.Option(False, prompt=True, envvar="USE_TRAEFIK"),
@@ -207,7 +219,7 @@ def _init_manager(
         client.swarm.leave(force=True)
 
     _: str = client.swarm.init(
-        # advertise_addr="tun0",
+        advertise_addr=advertise_addr,
         listen_addr=f"{ip}:{swarm_port}",
         force_new_cluster=swarm_reset,
         # default_addr_pool=["10.43.0.0/16"],
@@ -252,6 +264,7 @@ def _init_worker(
     manager_swarm_port: int = typer.Option(..., prompt=True),
     manager_rest_port: int = typer.Option(..., prompt=True),
     local_nfs_root: str = typer.Option(default=None, prompt=False),
+    advertise_addr: str = typer.Option(default="tun0", prompt=True),
     token: str = typer.Option(..., prompt=True),
     protocol: str = typer.Argument("http"),
 ):
@@ -270,7 +283,13 @@ def _init_worker(
         # TODO: we could check via client.info()
         pass
 
-    join_result: bool = client.swarm.join(remote_addrs=[manager_url], join_token=token)
+    join_result: bool = client.swarm.join(
+        remote_addrs=[manager_url],
+        join_token=token,
+        # data_path_addr="tun0",
+        # listen_addr="",
+        advertise_addr=advertise_addr,
+    )
     if join_result:
         worker_model: WorkerModel = build_worker_specs(local_nfs_root=local_nfs_root)
         # TODO: let users confirm gathered specs?

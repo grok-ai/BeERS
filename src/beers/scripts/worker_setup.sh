@@ -60,6 +60,7 @@ echo "Reloading Docker"
 # Reload the Docker daemon
 sudo systemctl daemon-reload
 sudo systemctl restart docker
+sudo systemctl enable --now docker
 
 # NFS setup
 if [[ "$NFS_DIR" != 1 ]]; then
