@@ -208,13 +208,14 @@ def _init_manager(
     swarmprom_base_domain: str = typer.Option(None, prompt=False, envvar="SWARMPROM_BASE_DOMAIN"),
     swarmprom_user: str = typer.Option(None, prompt=False, envvar="SWARMPROM_USER"),
     #
-    swarm_init: str = typer.Option(default=True, prompt=True, envvar="SWARM_INIT"),
+    swarm_init: bool = typer.Option(default=True, prompt=True, envvar="SWARM_INIT"),
 ):
     import docker
 
     client = docker.from_env()
 
     if swarm_init:
+        pylogger.error("swarm_init")
         client.swarm.leave(force=True)
 
         _: str = client.swarm.init(
