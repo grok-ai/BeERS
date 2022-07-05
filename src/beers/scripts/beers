@@ -149,7 +149,6 @@ def _setup_swarmprom(swarmprom_base_domain: str, swarmprom_user: str, traefik: b
 
 def run_event_listener():
     import docker
-    from docker.models.nodes import Node
 
     logger = logging.getLogger("SwarmEventListener")
 
@@ -209,24 +208,25 @@ def _init_manager(
     swarmprom_base_domain: str = typer.Option(None, prompt=False, envvar="SWARMPROM_BASE_DOMAIN"),
     swarmprom_user: str = typer.Option(None, prompt=False, envvar="SWARMPROM_USER"),
     #
-    swarm_reset: bool = typer.Option(True, prompt=True, envvar="SWARM_RESET"),
+    swarm_init: str = typer.Option(default=True, prompt=True, envvar="SWARM_INIT"),
 ):
     import docker
 
     client = docker.from_env()
 
-    if swarm_reset:
+    if swarm_init:
         client.swarm.leave(force=True)
 
-    _: str = client.swarm.init(
-        advertise_addr=advertise_addr,
-        listen_addr=f"{ip}:{swarm_port}",
-        force_new_cluster=swarm_reset,
-        # default_addr_pool=["10.43.0.0/16"],
-        # subnet_size=24,
-        # snapshot_interval=5000,
-        # log_entries_for_slow_followers=1200,
-    )
+        _: str = client.swarm.init(
+            advertise_addr=advertise_addr,
+            listen_addr=f"{ip}:{swarm_port}",
+            force_new_cluster=True,
+            # default_addr_pool=["10.43.0.0/16"],
+            # subnet_size=24,
+            # snapshot_interval=5000,
+            # log_entries_for_slow_followers=1200,
+        )
+
     Process(target=run_event_listener).start()
 
     worker_token: str = client.swarm.attrs["JoinTokens"]["Worker"]
