@@ -192,7 +192,7 @@ def _init_manager(
     rest_port: int = typer.Option(4242, prompt=True, envvar="MANAGER_REST_PORT"),
     rest_host: str = typer.Option("0.0.0.0", prompt=True, envvar="MANAGER_REST_HOST"),
     owner_id: str = typer.Option(..., prompt=True, envvar="OWNER_ID"),
-    db_path: str = typer.Option(..., prompt=True, envvar="BEERS_DB_PATH"),
+    beers_dir: Path = typer.Option(Path.home() / ".beers", prompt=True, envvar="BEERS_DIR"),
     advertise_addr: str = typer.Option(default="tun0", prompt=True),
     hostname: str = typer.Option(None, prompt=False, envvar="HOSTNAME"),
     #
@@ -230,7 +230,17 @@ def _init_manager(
     Process(target=run_event_listener).start()
 
     worker_token: str = client.swarm.attrs["JoinTokens"]["Worker"]
+    manager_token: str = client.swarm.attrs["JoinTokens"]["Manager"]
+
+    beers_dir.mkdir(exist_ok=True, parents=True)
+    tokens_dir: Path = beers_dir / "tokens"
+    tokens_dir.mkdir(exist_ok=True, parents=True)
+
+    (tokens_dir / "worker").write_text(f"{worker_token}\n", encoding="utf-8")
+    (tokens_dir / "manager").write_text(f"{manager_token}\n", encoding="utf-8")
+
     pylogger.info(f"WORKER_TOKEN: <{worker_token}>")
+    pylogger.info(f"MANAGER_TOKEN: <{manager_token}>")
 
     # if traefik:
     #     _setup_traefik(
@@ -254,8 +264,9 @@ def _init_manager(
 
     from beers.manager import service
 
-    db_path: Path = Path(db_path)
-    service.run(service_host=rest_host, service_port=rest_port, owner_id=owner_id, db_path=db_path)
+    service.run(
+        service_host=rest_host, service_port=rest_port, owner_id=owner_id, db_path=beers_dir / "beers_db.sqlite"
+    )
 
 
 @service_app.command("worker")
