@@ -160,10 +160,10 @@ def run_event_listener():
     )
 
     for event in events:
-        nodes: Sequence[Node] = list(client.nodes.list())
-        logger.warning([node.attrs for node in nodes])
-        hostname2count: Mapping[str, int] = Counter([node.attrs["Description"]["Hostname"] for node in nodes])
-        logger.warning(f"{hostname2count=}")
+        # nodes: Sequence[Node] = list(client.nodes.list())
+        # logger.warning([node.attrs for node in nodes])
+        # hostname2count: Mapping[str, int] = Counter([node.attrs["Description"]["Hostname"] for node in nodes])
+        # logger.warning(f"{hostname2count=}")
 
         # {'Type': 'node', 'Action': 'update',
         #  'Actor': {'ID': 'pou5nqcitq0y0x1wmhrrwdn8q', 'Attributes': {'name': __main__: 124
