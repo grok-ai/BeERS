@@ -127,7 +127,9 @@ class JobHandler:
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="Please select a Docker image by typing its name (e.g. <code>grokai/beer_job:0.0.1</code>)"
-            " or pressing the predefined buttons.",
+            " or pressing the predefined buttons.\n\n"
+            "N.B. The image must be available on Docker Hub (or locally on the machine). "
+            "If you don't know what this means, just use the default one :] ",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[predefined_images]),
         )
@@ -229,7 +231,7 @@ class JobHandler:
         else:
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Please now type the expected duration of this job.\n\n"
+                text="Please now type the expected duration of this job (in hours).\n\n"
                 "<b>It won't be automatically deleted </b>when it expires, don't worry."
                 " You'll just get notified and asked to adjust the <u>expected</u> duration.",
                 parse_mode="HTML",
@@ -348,7 +350,9 @@ class JobHandler:
             )
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text=resources_answer.message,
+                text=resources_answer.message
+                if resources_answer.code.is_error
+                else "Job scheduled! Use the /job command to check its status in the job list",
                 parse_mode="HTML",
             )
 
