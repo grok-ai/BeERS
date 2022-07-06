@@ -38,6 +38,9 @@ RUN sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config
 # Add VSCode Server
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 
+# Enable byobu by default
+RUN byobu-enable
+
 # SSH port
 EXPOSE 22
 
