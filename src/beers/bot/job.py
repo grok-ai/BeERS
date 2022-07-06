@@ -377,7 +377,6 @@ class JobHandler:
         )
 
     def job_list(self, update: Update, context: CallbackContext):
-        print("job_list")
         query = update.callback_query
         query.answer()
 
@@ -408,19 +407,20 @@ class JobHandler:
                 job = service["job"]
                 hostname: str = job["worker_hostname"]
                 gpu: str = job["gpu"]["name"]
+
                 status: Sequence = [
                     container["Status"]
                     for container in service["docker_tasks"]
                     if container.get("Status", {"State": {}}).get("State", None) == "running"
                 ]
+
                 if len(status) == 0:
-                    status = service["docker_tasks"][0]
+                    status = service["docker_tasks"][0]["Status"]
                 else:
                     status = status[0]
 
                 expected_end: datetime = datetime.fromisoformat(job["expected_end_time"])
                 remaining_hours = math.ceil((expected_end - now).seconds / 60 / 60)
-
                 state: str = status["State"]
                 message += f"""
                         <b>{i}]</b> Worker: <b>{hostname}</b>
